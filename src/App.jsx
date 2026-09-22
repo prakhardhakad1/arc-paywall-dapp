@@ -25,6 +25,43 @@ import { dbService } from './lib/db';
 const STORAGE_GATES_KEY = 'arcgate_saved_gates_v1';
 const STORAGE_STATS_KEY = 'arcgate_saved_stats_v1';
 
+// Format and sanitize raw Web3 & MetaMask RPC errors
+const formatWeb3Error = (err, defaultMsg = 'Action failed') => {
+  if (!err) return defaultMsg;
+  const errStr = typeof err === 'string' ? err : `${err.message || ''} ${err.reason || ''} ${err.shortMessage || ''} ${JSON.stringify(err)}`;
+  
+  if (err.code === -32002 || errStr.includes('-32002') || errStr.includes('already pending')) {
+    return 'MetaMask popup is already waiting! Click your MetaMask extension icon to approve.';
+  }
+
+  if (err.code === 4001 || errStr.includes('4001') || errStr.includes('User rejected') || errStr.includes('user rejected')) {
+    return 'Action was cancelled in MetaMask.';
+  }
+
+  if (errStr.includes('insufficient funds') || errStr.includes('exceeds balance')) {
+    return 'Insufficient native USDC on Arc Mainnet for gas or unlock.';
+  }
+
+  if (err.reason && typeof err.reason === 'string' && err.reason.length < 80) {
+    return err.reason;
+  }
+
+  if (err.shortMessage && typeof err.shortMessage === 'string' && err.shortMessage.length < 80) {
+    return err.shortMessage;
+  }
+
+  const match = errStr.match(/"message":\s*"([^"]+)"/);
+  if (match && match[1] && match[1].length < 90) {
+    return match[1];
+  }
+
+  if (err.message && err.message.length < 80 && !err.message.includes('coalesce')) {
+    return err.message;
+  }
+
+  return defaultMsg;
+};
+
 export default function App() {
   const [account, setAccount] = useState(null);
   const [chainId, setChainId] = useState(null);
@@ -146,6 +183,7 @@ export default function App() {
   }, []);
 
   const connectWallet = async () => {
+    if (isConnecting) return;
     if (isDemoMode) {
       showToast('Sandbox Mode is active! You are exploring with simulated Arc funds.', 'info');
       return;
@@ -173,7 +211,7 @@ export default function App() {
       }
     } catch (err) {
       console.error(err);
-      showToast(err.message || 'Failed to connect wallet', 'error');
+      showToast(formatWeb3Error(err, 'Failed to connect wallet'), 'error');
     } finally {
       setIsConnecting(false);
     }
@@ -212,11 +250,11 @@ export default function App() {
           showToast('Added and switched to Arc Mainnet!', 'success');
         } catch (addError) {
           console.error('Failed to add Arc network', addError);
-          showToast('Could not add Arc Mainnet to wallet', 'error');
+          showToast(formatWeb3Error(addError, 'Could not add Arc Mainnet to wallet'), 'error');
         }
       } else {
         console.error(switchError);
-        showToast('Network switch cancelled', 'error');
+        showToast(formatWeb3Error(switchError, 'Network switch cancelled'), 'error');
       }
     }
   };
@@ -390,7 +428,7 @@ export default function App() {
       showToast(`Success! Gate #${gate.id} unlocked via Arc Mainnet native USDC.`, 'success');
     } catch (err) {
       console.error(err);
-      showToast(err.reason || err.message || 'Unlock transaction failed', 'error');
+      showToast(formatWeb3Error(err, 'Unlock transaction failed'), 'error');
     } finally {
       setUnlockingId(null);
     }
@@ -454,7 +492,7 @@ export default function App() {
       confetti({ particleCount: 60, spread: 60 });
     } catch (err) {
       console.error(err);
-      showToast(err.reason || err.message || 'Creation failed', 'error');
+      showToast(formatWeb3Error(err, 'Gate creation failed'), 'error');
     } finally {
       setIsCreating(false);
     }
@@ -505,7 +543,7 @@ export default function App() {
       confetti({ particleCount: 70, spread: 80 });
     } catch (err) {
       console.error(err);
-      showToast(err.reason || err.message || 'Tipping failed', 'error');
+      showToast(formatWeb3Error(err, 'Tipping failed'), 'error');
     } finally {
       setIsTipping(false);
     }
@@ -522,7 +560,7 @@ export default function App() {
       {/* Toast Notification */}
       {toast && (
         <div
-          className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl border shadow-2xl backdrop-blur-xl text-xs font-semibold flex items-center space-x-2 animate-in slide-in-from-bottom duration-200 ${
+          className={`fixed bottom-6 right-6 z-50 max-w-sm sm:max-w-md break-words px-4 py-3 rounded-2xl border shadow-2xl backdrop-blur-xl text-xs font-semibold flex items-center space-x-2 animate-in slide-in-from-bottom duration-200 ${
             toast.type === 'error'
               ? 'bg-rose-950/90 border-rose-500/40 text-rose-200'
               : toast.type === 'success'

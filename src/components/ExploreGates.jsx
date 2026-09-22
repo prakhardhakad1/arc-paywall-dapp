@@ -54,7 +54,7 @@ export default function ExploreGates({
             )}
           </div>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            Unlock digital alpha, code, files, or secret invites with instant 1-click native USDC.
+            Unlock digital downloads, code, files, or private links with instant 1-click native USDC.
           </p>
         </div>
 

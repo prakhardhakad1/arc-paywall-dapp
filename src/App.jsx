@@ -305,7 +305,7 @@ export default function App() {
       persistGatesAndStats(updatedGates, updatedStats);
 
       setSelectedUnlockedGate(updatedGate);
-      dbService.recordUnlock(gate.id, '0xDemoJudge...Arc', gate.priceUsdcFormatted, '0xSimulatedArcHash');
+      dbService.recordUnlock(gate.id, '0xDemo...Arc', gate.priceUsdcFormatted, '0xSimulatedArcHash');
 
       confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
       showToast(`[Sandbox] Gate #${gate.id} unlocked instantly! Secret revealed.`, 'success');
@@ -426,7 +426,7 @@ export default function App() {
         await new Promise((resolve) => setTimeout(resolve, 500));
         const localGate = {
           id: gates.length + 1,
-          creator: account || (isDemoMode ? '0xDemoJudge...Arc' : '0xYourWalletAddress'),
+          creator: account || (isDemoMode ? '0xDemo...Arc' : '0xYourWalletAddress'),
           title: newGateData.title,
           description: newGateData.description,
           priceUsdcWei: priceWei.toString(),
@@ -558,20 +558,18 @@ export default function App() {
         <section className="mb-10 text-center relative">
           <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 text-xs font-medium mb-4">
             <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-            <span>Circle Arc Microgrants Candidate</span>
-            <span className="text-slate-500">•</span>
-            <span className="text-slate-300">500 USDC Grant Track</span>
+            <span>⚡ Live on Arc Mainnet • Native USDC Settlement</span>
           </div>
 
           <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight mb-4 max-w-4xl mx-auto leading-tight">
-            Decoupled Micro-Monetization on{' '}
+            1-Click Paywalls & Micro-Tipping on{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400">
               Circle's Arc Mainnet
             </span>
           </h1>
 
           <p className="text-sm sm:text-base text-slate-400 max-w-2xl mx-auto mb-6 leading-relaxed">
-            Lock exclusive links, research alpha, code repositories, or private communities behind instant 1-click native USDC micro-payments with sub-second finality.
+            Lock digital content, secret links, code repos, or API endpoints behind instant micro-payments. Zero ERC-20 approvals, sub-second finality.
           </p>
 
           <div className="flex flex-wrap items-center justify-center gap-3">
@@ -585,7 +583,7 @@ export default function App() {
               onClick={() => setIsGuideOpen(true)}
               className="px-6 py-3 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900/80 hover:bg-slate-800 text-slate-300 border border-slate-700/80 hover:border-slate-600 transition-all"
             >
-              Read Architecture & Guide
+              How It Works & Docs
             </button>
           </div>
         </section>
@@ -650,7 +648,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></div>
-            <span>ArcGate • Built for DoraHacks Arc Microgrants (Circle)</span>
+            <span>ArcGate • Native USDC Micro-Payments Protocol on Arc</span>
           </div>
           <div className="flex items-center space-x-4 font-mono text-[11px]">
             <span>Chain ID: 5042</span>

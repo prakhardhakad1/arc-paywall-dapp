@@ -107,7 +107,7 @@ export default function Navbar({
             onClick={onOpenGuideModal}
             className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 rounded-lg flex items-center space-x-1 transition-all"
           >
-            <span>DoraHacks Guide</span>
+            <span>How It Works</span>
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
           </button>
         </nav>
@@ -170,7 +170,7 @@ export default function Navbar({
           {isDemoMode ? (
             <div className="flex items-center space-x-1.5 bg-amber-950/60 border border-amber-500/40 px-3 py-1.5 rounded-xl shadow-inner text-amber-200 text-xs font-mono">
               <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-              <span>0xJudge...Arc</span>
+              <span>0xDemo...Arc</span>
             </div>
           ) : account ? (
             <div className="relative">
@@ -279,7 +279,7 @@ export default function Navbar({
             }}
             className="w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:bg-slate-900 flex items-center justify-between"
           >
-            <span>DoraHacks Guide</span>
+            <span>How It Works</span>
             <Sparkles className="w-4 h-4 text-amber-400" />
           </button>
           <button

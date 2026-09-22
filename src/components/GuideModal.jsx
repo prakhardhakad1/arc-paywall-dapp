@@ -33,7 +33,7 @@ export default function GuideModal({ isOpen, onClose }) {
           <div>
             <div className="flex items-center space-x-2">
               <h3 className="text-xl font-extrabold text-white tracking-tight">
-                Arc Microgrants ($500 USDC) Submission Guide
+                ArcGate Architecture & Protocol Guide
               </h3>
             </div>
             <p className="text-xs text-slate-400">

@@ -1,9 +1,14 @@
 import { createClient } from '@libsql/client';
 
-const url = "libsql://project2-prakhardhakad1.aws-ap-south-1.turso.io";
-const authToken = "eyJhbGciOiJFZERTQSIsInR5cCI6IkpXVCJ9.eyJhIjoicnciLCJpYXQiOjE3OTAwOTk1MzMsImlkIjoiMDFhMGNhM2UtYzkwMS03NjNjLWJjZDEtOWYyMzVmYTFiZmJjIiwia2lkIjoiUXo2Wmx2cnFxcE92OFFXcjdIbUl2S0RQbVB1UnlGVXJ1eThTdUd5S2YzYyIsInJpZCI6ImI2ZGQxOGE3LTkwMGMtNGY5ZS04ZDQ2LWVjZDg0M2ZmYWJjZCJ9.0tKkcRUXCLHKodvAMBvs_vmL6ZXp_hHD_hJ4ncK1Llj4Tqb5IjDTRMnQV-iFnvyFDZXOohVvuHm9HhygRm5TCA";
+const url = process.env.TURSO_DATABASE_URL || process.env.VITE_TURSO_DATABASE_URL;
+const authToken = process.env.TURSO_AUTH_TOKEN || process.env.VITE_TURSO_AUTH_TOKEN;
 
 async function main() {
+  if (!url || !authToken) {
+    console.error("Error: TURSO_DATABASE_URL and TURSO_AUTH_TOKEN environment variables are required.");
+    process.exit(1);
+  }
+
   console.log("Connecting to Turso database...");
   const client = createClient({ url, authToken });
 

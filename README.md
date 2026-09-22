@@ -5,57 +5,73 @@
 [![Native Asset](https://img.shields.io/badge/Gas%20Asset-Native%20USDC-10b981?style=flat-square)](https://circle.com)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
-> **ArcGate** is a decentralized paywall, link locker, and creator tipping protocol engineered natively for Circle's **Arc Mainnet**. It enables creators, researchers, and developers to monetize digital content (alpha links, private codebases, invites, confidential research) behind instant 1-click native USDC micro-payments ($0.05 to $1.00 USDC) with sub-second finality.
+> **ArcGate** is a decentralized paywall, link locker, and creator tipping protocol engineered natively for Circle's **Arc Mainnet**. It enables creators, researchers, developers, and autonomous AI agents to monetize digital content (alpha links, private codebases, invites, confidential datasets) behind instant 1-click native USDC micro-payments ($0.05 to $1.00 USDC) with sub-second finality.
 
 ---
 
-## ⚡ The Arc Superpower: Why ArcGate Exists
+## ⚡ 5 Standout Features (Engineered to Win)
 
-On standard EVM networks (Ethereum, Polygon, Arbitrum), executing a micro-transaction in USDC is burdened with severe UX friction:
-1. **The Approval Tax**: Users must submit an `approve()` ERC-20 transaction before calling the contract, requiring two separate wallet confirmations.
-2. **Volatile Gas Assets**: Users are forced to hold volatile tokens (ETH, MATIC) just to pay gas for stablecoin transactions.
+### 1. ⚡ Instant Interactive Demo Sandbox (Zero Friction for Judges)
+- Judges reviewing 50+ projects can test immediately without needing MetaMask, Arc network RPC configuration, or live USDC balances.
+- The **[● Live Mainnet] | [⚡ Sandbox]** toggle in the Navbar lets judges test creating paywalls, 1-click unlocks, micro-tipping, and secret reveals with celebratory confetti bursts.
 
-### How Arc Revolutionizes This:
-On Circle's **Arc Mainnet**, **USDC is the native gas asset** (18 decimals for native transfers). 
-- **1-Click Native Checkout**: When a user unlocks a gate or tips a creator on ArcGate, they pay directly via `msg.value` in native USDC.
-- **Zero Token Approvals**: Zero prior approvals required. The transaction settles in under 1 second.
-- **99% Direct Creator Payout**: 99% of each micro-payment is routed directly into the creator's wallet on-chain instantaneously.
+### 2. 🔌 1-Line Embed Widget Generator (Developer Tooling)
+- Enables creators and developers to embed ArcGate paywalls directly into WordPress blogs, Notion docs, Substack, Medium, or custom React/Next.js dApps:
+  - **HTML**: `<script src="https://arcgate.vercel.app/widget.js" data-gate-id="1"></script>`
+  - **Iframe**: `<iframe src="https://arcgate.vercel.app/embed/1" ...></iframe>`
+  - **React Component**: `<ArcGatePaywall gateId={1} price="0.10 USDC" />`
+
+### 3. 🤖 AI Agent Terminal & Agentic Commerce (HTTP 402)
+- Built for machine-to-machine micropayments.
+- Includes an interactive terminal on the homepage demonstrating how autonomous AI agents query protected datasets and authorize micro-transactions using `HTTP 402 Payment Required` headers and `X-Arc-Tx-Hash`.
+- Click **"Simulate Agent Unlock"** to watch the real-time agentic execution flow confirm in 0.42 seconds!
+
+### 4. 📊 Arc vs. Ethereum Visual Benchmark
+- A high-impact side-by-side comparison card directly highlighting why Arc's native USDC gas asset is revolutionary:
+  - **Checkout Flow**: 1-Click Native Transfer vs. 2-Step (Approve + Transfer)
+  - **Gas Asset**: Native USDC (Zero Volatility) vs. Volatile ETH
+  - **Gas Fee**: ~$0.001 USDC vs. $3.50–$12.00+ ETH
+  - **Settlement**: < 1.0s Sub-Second vs. 30s+
+  - **$0.10 Payments**: 100% Viable vs. Economically Broken
+
+### 5. 🗄️ Lightweight Turso / SQLite Backend Schema
+- Includes a complete DDL schema and client in `src/lib/db.js` for Turso / libSQL / SQLite edge storage to track gate views, conversion rates, and on-chain unlock logs.
 
 ---
 
 ## 🏛️ System Architecture
 
 ```
-                                +---------------------------+
-                                |      Creator / Buyer      |
-                                +-------------+-------------+
-                                              |
-                                     (Connects MetaMask)
-                                              |
-                                              v
-               +-------------------------------------------------------------+
-               |                       ArcGate Frontend                      |
-               |                (Vite + React + Tailwind CSS)                |
-               |         Auto-Switches to Arc Mainnet (Chain ID 5042)        |
-               +------------------------------+------------------------------+
-                                              |
-                               (RPC: https://rpc.mainnet.arc.io)
-                                              |
-                                              v
-               +-------------------------------------------------------------+
-               |                   ArcPaywall.sol Contract                   |
-               |                     (Arc Mainnet L1)                        |
-               +------------------------------+------------------------------+
-                                              |
-                     +------------------------+------------------------+
-                     |                                                 |
-                     v                                                 v
-    +---------------------------------+               +---------------------------------+
-    |          createGate()           |               |          unlockGate()           |
-    | - Stores title, description     |               | - Verifies native USDC msg.value|
-    | - Encrypts/hides secret payload |               | - Grants instant access         |
-    | - Sets custom USDC price        |               | - 99% forwarded to creator      |
-    +---------------------------------+               +---------------------------------+
+                                +-------------------------------+
+                                |  Creator / Buyer / AI Agent   |
+                                +---------------+---------------+
+                                                |
+                                       (Connects / Queries)
+                                                |
+                                                v
+               +-----------------------------------------------------------------+
+               |                        ArcGate Frontend                         |
+               |                  (Vite + React + Tailwind CSS)                  |
+               |               [Live Mainnet] | [Demo Sandbox]                   |
+               +--------------------------------+--------------------------------+
+                                                |
+                                 (RPC: https://rpc.mainnet.arc.io)
+                                                |
+                                                v
+               +-----------------------------------------------------------------+
+               |                     ArcPaywall.sol Contract                     |
+               |                       (Arc Mainnet L1)                          |
+               +--------------------------------+--------------------------------+
+                                                |
+                       +------------------------+------------------------+
+                       |                                                 |
+                       v                                                 v
+      +---------------------------------+               +---------------------------------+
+      |          createGate()           |               |          unlockGate()           |
+      | - Title, description, price     |               | - 1-Click native USDC msg.value |
+      | - Encrypted payload storage     |               | - 99% direct creator payout     |
+      | - Instant on-chain event        |               | - Sub-second finality (< 1s)    |
+      +---------------------------------+               +---------------------------------+
 ```
 
 ---
@@ -107,13 +123,10 @@ On Circle's **Arc Mainnet**, **USDC is the native gas asset** (18 decimals for n
 3. Save the file.
 
 ### Step 4: Host on Vercel for Free
-1. Initialize git and push to GitHub:
+1. Push to GitHub:
    ```bash
-   git init
    git add .
-   git commit -m "feat: ArcGate micro-paywall protocol on Arc Mainnet"
-   git branch -M main
-   git remote add origin https://github.com/YOUR_USERNAME/arc-paywall-dapp.git
+   git commit -m "feat: 5 high-impact upgrades for ArcGate"
    git push -u origin main
    ```
 2. Go to [Vercel](https://vercel.com) $\to$ **Add New Project** $\to$ Import your `arc-paywall-dapp` repository.
@@ -129,7 +142,7 @@ Use this exact text when filling out your DoraHacks submission form at [dorahack
 `ArcGate — Native USDC Micro-Paywall & Tipping Protocol`
 
 ### Tagline:
-`Decoupled creator micro-monetization powered by Circle's Arc Mainnet native USDC gas.`
+`Decoupled creator micro-monetization & agentic micropayments powered by Circle's Arc Mainnet native USDC gas.`
 
 ### Problem Statement:
 Existing subscription models ($10-$30/month) force users into all-or-nothing commitments for single pieces of content. Furthermore, on traditional EVM networks, sending micro-payments in USDC requires paying gas in ETH and performing 2-step ERC-20 approvals (`approve` then `transferFrom`), making sub-$1 transactions economically unviable.
@@ -138,10 +151,11 @@ Existing subscription models ($10-$30/month) force users into all-or-nothing com
 ArcGate leverages Circle's newly launched **Arc Mainnet**, where **USDC is the native gas asset**. By utilizing native transfers (`msg.value`), ArcGate enables 1-click instant unlock of digital assets (research alpha, secret links, private Discord/Telegram invites, code repositories) for as low as $0.05 USDC with zero token approvals and sub-second settlement.
 
 ### Key Features:
-- **Instant 1-Click Paywalled Secrets**: Creators define content and unlock prices in USDC.
-- **Direct P2P Micro-Tipping**: Send on-chain USDC tips with custom messages to any creator.
+- **Zero-Friction Sandbox Mode**: Interactive demo sandbox for judges and users without MetaMask or Arc funds.
+- **1-Line Embed Widget Generator**: HTML, Iframe, and React embed snippets for creators to monetize anywhere.
+- **Autonomous AI Agent Micropayments**: HTTP 402 Payment Required integration for agentic commerce.
+- **Arc vs. Ethereum Visual Benchmark**: Proof of Arc's superior stablecoin-native architecture.
 - **99% Direct Creator Revenue**: Immediate on-chain distribution upon unlock.
-- **Auto Arc Network Onboarding**: Seamless 1-click MetaMask network switcher for Chain ID 5042.
 
 ---
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck, Wallet, ExternalLink, ArrowRightLeft, Sparkles, PlusCircle } from 'lucide-react';
+import { ShieldCheck, Wallet, ExternalLink, ArrowRightLeft, Sparkles, PlusCircle, Zap } from 'lucide-react';
 import { ARC_MAINNET } from '../config';
 
 export default function Navbar({
@@ -11,7 +11,9 @@ export default function Navbar({
   onOpenCreateModal,
   onOpenGuideModal,
   activeTab,
-  setActiveTab
+  setActiveTab,
+  isDemoMode,
+  setIsDemoMode,
 }) {
   const isArcNetwork = chainId === ARC_MAINNET.chainId;
 
@@ -21,7 +23,7 @@ export default function Navbar({
   };
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-[#07090e]/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-slate-800/80 bg-[#07090e]/85 backdrop-blur-xl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
         
         {/* Brand / Logo */}
@@ -37,7 +39,7 @@ export default function Navbar({
                 Arc<span className="text-cyan-400">Gate</span>
               </span>
               <span className="px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-500/30">
-                Mainnet
+                {isDemoMode ? 'Sandbox' : 'Mainnet'}
               </span>
             </div>
             <p className="text-[11px] text-slate-400 hidden sm:block">
@@ -47,7 +49,7 @@ export default function Navbar({
         </div>
 
         {/* Navigation Tabs */}
-        <nav className="hidden md:flex items-center space-x-1 p-1 bg-slate-900/60 rounded-xl border border-slate-800/80">
+        <nav className="hidden lg:flex items-center space-x-1 p-1 bg-slate-900/60 rounded-xl border border-slate-800/80">
           <button
             onClick={() => setActiveTab('explore')}
             className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all ${
@@ -77,40 +79,69 @@ export default function Navbar({
           </button>
         </nav>
 
-        {/* Action Buttons & Wallet */}
-        <div className="flex items-center space-x-3">
+        {/* Action Controls & Wallet */}
+        <div className="flex items-center space-x-2.5">
+          
+          {/* Mode Switcher Toggle (Zero Wallet Friction for Judges) */}
+          <div className="flex items-center bg-slate-900/90 border border-slate-700/80 rounded-xl p-1 text-[11px] font-semibold">
+            <button
+              type="button"
+              onClick={() => setIsDemoMode(false)}
+              className={`px-2.5 py-1 rounded-lg transition-all flex items-center space-x-1.5 ${
+                !isDemoMode
+                  ? 'bg-cyan-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Interact with real MetaMask and Arc Mainnet"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+              <span className="hidden sm:inline">Live</span> Mainnet
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsDemoMode(true)}
+              className={`px-2.5 py-1 rounded-lg transition-all flex items-center space-x-1.5 ${
+                isDemoMode
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+              title="Test instantly with zero wallet friction"
+            >
+              <Zap className="w-3 h-3 text-amber-300" />
+              <span>Sandbox</span>
+            </button>
+          </div>
+
+          {/* Create Gate Button */}
           <button
             onClick={onOpenCreateModal}
-            className="hidden sm:inline-flex items-center space-x-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-md shadow-cyan-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            className="hidden sm:inline-flex items-center space-x-1.5 px-3 py-2 text-xs font-semibold rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-md shadow-cyan-600/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
           >
-            <PlusCircle className="w-4 h-4" />
-            <span>Create Gate</span>
+            <PlusCircle className="w-3.5 h-3.5" />
+            <span>Create</span>
           </button>
 
-          {/* Network Switcher Alert if on wrong network */}
-          {account && !isArcNetwork && (
+          {/* If in live mode and wrong network, show Switcher */}
+          {!isDemoMode && account && !isArcNetwork && (
             <button
               onClick={onSwitchNetwork}
               className="inline-flex items-center space-x-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl bg-amber-500/10 border border-amber-500/40 text-amber-300 hover:bg-amber-500/20 transition-all animate-pulse"
               title="Click to switch MetaMask to Arc Mainnet (Chain 5042)"
             >
               <ArrowRightLeft className="w-3.5 h-3.5" />
-              <span>Switch to Arc (5042)</span>
+              <span>Switch (5042)</span>
             </button>
           )}
 
-          {/* Connected Network Badge */}
-          {account && isArcNetwork && (
-            <div className="hidden lg:flex items-center space-x-1.5 px-3 py-1.5 text-xs font-medium rounded-xl bg-emerald-950/60 border border-emerald-500/30 text-emerald-300">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-              <span>Arc Mainnet</span>
+          {/* Wallet Status / Connect Button */}
+          {isDemoMode ? (
+            <div className="flex items-center space-x-1.5 bg-amber-950/60 border border-amber-500/40 px-3 py-1.5 rounded-xl shadow-inner text-amber-200 text-xs font-mono">
+              <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+              <span>0xJudge...Arc</span>
             </div>
-          )}
-
-          {/* Connect / Account Button */}
-          {account ? (
+          ) : account ? (
             <div className="flex items-center space-x-2 bg-slate-900/90 border border-slate-700/80 px-3.5 py-2 rounded-xl shadow-inner">
-              <div className="w-2.5 h-2.5 rounded-full bg-cyan-400"></div>
+              <div className="w-2 h-2 rounded-full bg-cyan-400"></div>
               <span className="text-xs font-mono font-medium text-slate-200">
                 {truncateAddress(account)}
               </span>
@@ -119,12 +150,13 @@ export default function Navbar({
             <button
               onClick={onConnect}
               disabled={isConnecting}
-              className="inline-flex items-center space-x-2 px-4 py-2 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 hover:border-slate-600 transition-all shadow-sm"
+              className="inline-flex items-center space-x-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 hover:border-slate-600 transition-all shadow-sm"
             >
-              <Wallet className="w-4 h-4 text-cyan-400" />
-              <span>{isConnecting ? 'Connecting...' : 'Connect Wallet'}</span>
+              <Wallet className="w-3.5 h-3.5 text-cyan-400" />
+              <span>{isConnecting ? 'Connecting...' : 'Connect'}</span>
             </button>
           )}
+
         </div>
       </div>
     </header>

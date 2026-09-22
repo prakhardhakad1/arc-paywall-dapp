@@ -10,6 +10,9 @@ import CreateGateModal from './components/CreateGateModal';
 import TipModal from './components/TipModal';
 import UnlockedModal from './components/UnlockedModal';
 import GuideModal from './components/GuideModal';
+import EmbedWidgetModal from './components/EmbedWidgetModal';
+import AgentTerminalCard from './components/AgentTerminalCard';
+import BenchmarkCard from './components/BenchmarkCard';
 
 import {
   ARC_MAINNET,
@@ -17,12 +20,16 @@ import {
   ARC_PAYWALL_ABI,
   DEMO_GATES,
 } from './config';
+import { dbService } from './lib/db';
 
 export default function App() {
   const [account, setAccount] = useState(null);
   const [chainId, setChainId] = useState(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [activeTab, setActiveTab] = useState('explore');
+
+  // Interactive Demo Sandbox Mode for Zero-Friction Judge Testing
+  const [isDemoMode, setIsDemoMode] = useState(false);
 
   // Gates State
   const [gates, setGates] = useState(DEMO_GATES);
@@ -37,6 +44,7 @@ export default function App() {
   const [isTipOpen, setIsTipOpen] = useState(false);
   const [tipRecipient, setTipRecipient] = useState('');
   const [selectedUnlockedGate, setSelectedUnlockedGate] = useState(null);
+  const [selectedEmbedGate, setSelectedEmbedGate] = useState(null);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
 
   // Loading States
@@ -93,9 +101,14 @@ export default function App() {
   }, []);
 
   const connectWallet = async () => {
+    if (isDemoMode) {
+      showToast('Sandbox Mode is active! You are exploring with simulated Arc funds.', 'info');
+      return;
+    }
+
     if (!window.ethereum) {
-      showToast('MetaMask is not installed. Please install MetaMask to interact.', 'error');
-      window.open('https://metamask.io/download/', '_blank');
+      showToast('MetaMask not detected. Enabling Sandbox Mode for you to test without a wallet!', 'info');
+      setIsDemoMode(true);
       return;
     }
 
@@ -131,7 +144,6 @@ export default function App() {
       setChainId(ARC_MAINNET.chainId);
       showToast('Switched to Arc Mainnet (5042)', 'success');
     } catch (switchError) {
-      // 4902 means the chain has not been added to MetaMask
       if (switchError.code === 4902) {
         try {
           await window.ethereum.request({
@@ -164,7 +176,7 @@ export default function App() {
   // -------------------------------------------------------------
 
   const fetchContractGates = async () => {
-    if (!isContractConfigured || !window.ethereum) return;
+    if (isDemoMode || !isContractConfigured || !window.ethereum) return;
 
     try {
       const provider = new ethers.BrowserProvider(window.ethereum);
@@ -205,16 +217,38 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (account && chainId === ARC_MAINNET.chainId) {
+    if (account && chainId === ARC_MAINNET.chainId && !isDemoMode) {
       fetchContractGates();
     }
-  }, [account, chainId]);
+  }, [account, chainId, isDemoMode]);
 
   // -------------------------------------------------------------
   // ACTIONS: UNLOCK, CREATE, TIP
   // -------------------------------------------------------------
 
   const handleUnlock = async (gate) => {
+    // Zero-friction flow for judges in Sandbox Mode
+    if (isDemoMode) {
+      setUnlockingId(gate.id);
+      await new Promise((resolve) => setTimeout(resolve, 600));
+
+      const updatedGate = {
+        ...gate,
+        isUnlocked: true,
+        unlockCount: gate.unlockCount + 1,
+      };
+
+      setGates((prev) => prev.map((g) => (g.id === gate.id ? updatedGate : g)));
+      setSelectedUnlockedGate(updatedGate);
+      dbService.recordUnlock(gate.id, '0xDemoJudge...Arc', gate.priceUsdcFormatted, '0xSimulatedArcHash');
+
+      confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+      showToast(`[Sandbox] Gate #${gate.id} unlocked instantly! Secret revealed.`, 'success');
+      setUnlockingId(null);
+      return;
+    }
+
+    // Live Web3 flow
     if (!account) {
       connectWallet();
       return;
@@ -229,7 +263,6 @@ export default function App() {
 
     try {
       if (isContractConfigured) {
-        // Real on-chain unlock on Arc Mainnet
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
         const contract = new ethers.Contract(
@@ -242,10 +275,9 @@ export default function App() {
           value: BigInt(gate.priceUsdcWei),
         });
 
-        showToast(`Transaction broadcast: ${tx.hash.slice(0, 10)}... Waiting for Arc finality`, 'info');
+        showToast(`Transaction broadcast: ${tx.hash.slice(0, 10)}... Sub-second finality`, 'info');
         await tx.wait(1);
 
-        // Fetch refreshed gate
         const unlockedData = await contract.getGate(gate.id);
         const updatedGate = {
           ...gate,
@@ -257,7 +289,7 @@ export default function App() {
         setGates((prev) => prev.map((g) => (g.id === gate.id ? updatedGate : g)));
         setSelectedUnlockedGate(updatedGate);
       } else {
-        // Interactive Demo mode confirmation
+        // Fallback simulation
         await new Promise((resolve) => setTimeout(resolve, 800));
         const updatedGate = {
           ...gate,
@@ -268,13 +300,7 @@ export default function App() {
         setSelectedUnlockedGate(updatedGate);
       }
 
-      // Confetti burst
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-      });
-
+      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
       showToast(`Success! Gate #${gate.id} unlocked via Arc Mainnet native USDC.`, 'success');
     } catch (err) {
       console.error(err);
@@ -290,7 +316,7 @@ export default function App() {
     try {
       const priceWei = ethers.parseUnits(newGateData.priceUsdc, 18);
 
-      if (isContractConfigured) {
+      if (!isDemoMode && isContractConfigured) {
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
         const contract = new ethers.Contract(
@@ -311,10 +337,10 @@ export default function App() {
         await fetchContractGates();
       } else {
         // Local interactive demo state
-        await new Promise((resolve) => setTimeout(resolve, 600));
+        await new Promise((resolve) => setTimeout(resolve, 500));
         const localGate = {
           id: gates.length + 1,
-          creator: account || '0xYourWalletAddress',
+          creator: account || (isDemoMode ? '0xDemoJudge...Arc' : '0xYourWalletAddress'),
           title: newGateData.title,
           description: newGateData.description,
           priceUsdcWei: priceWei.toString(),
@@ -334,7 +360,7 @@ export default function App() {
 
       setIsCreateOpen(false);
       showToast('Paywalled Gate published successfully on Arc!', 'success');
-      confetti({ particleCount: 50, spread: 60 });
+      confetti({ particleCount: 60, spread: 60 });
     } catch (err) {
       console.error(err);
       showToast(err.reason || err.message || 'Creation failed', 'error');
@@ -347,6 +373,14 @@ export default function App() {
     setIsTipping(true);
 
     try {
+      if (isDemoMode) {
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        setIsTipOpen(false);
+        showToast(`[Sandbox] Sent ${amountUsdc} USDC tip to ${recipient.slice(0, 6)}...!`, 'success');
+        confetti({ particleCount: 70, spread: 80 });
+        return;
+      }
+
       const tipWei = ethers.parseUnits(amountUsdc, 18);
 
       if (isContractConfigured) {
@@ -365,7 +399,6 @@ export default function App() {
         showToast(`Tip broadcast on Arc: ${tx.hash.slice(0, 10)}...`, 'info');
         await tx.wait(1);
       } else {
-        // Direct native send fallback if contract not deployed
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
         const tx = await signer.sendTransaction({
@@ -422,6 +455,8 @@ export default function App() {
         onOpenGuideModal={() => setIsGuideOpen(true)}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        isDemoMode={isDemoMode}
+        setIsDemoMode={setIsDemoMode}
       />
 
       {/* Main Container */}
@@ -466,21 +501,35 @@ export default function App() {
         {/* Bento Grid Stats */}
         <StatsBento
           stats={stats}
-          isConnected={Boolean(account)}
+          isConnected={Boolean(account) || isDemoMode}
           isArcNetwork={chainId === ARC_MAINNET.chainId}
         />
 
         {/* Explore View or Quick Tip View */}
         {activeTab === 'explore' ? (
-          <ExploreGates
-            gates={gates}
-            account={account}
-            onUnlock={handleUnlock}
-            onViewSecret={(gate) => setSelectedUnlockedGate(gate)}
-            onTipCreator={handleOpenTipModalForCreator}
-            unlockingId={unlockingId}
-            isArcNetwork={chainId === ARC_MAINNET.chainId}
-          />
+          <>
+            <ExploreGates
+              gates={gates}
+              account={account}
+              onUnlock={handleUnlock}
+              onViewSecret={(gate) => setSelectedUnlockedGate(gate)}
+              onTipCreator={handleOpenTipModalForCreator}
+              onOpenEmbedModal={(gate) => setSelectedEmbedGate(gate)}
+              unlockingId={unlockingId}
+              isArcNetwork={chainId === ARC_MAINNET.chainId}
+              isDemoMode={isDemoMode}
+            />
+
+            {/* Arc vs Ethereum Visual Benchmark Card */}
+            <div className="mt-12">
+              <BenchmarkCard />
+            </div>
+
+            {/* AI Agent Terminal Box */}
+            <div className="mt-8">
+              <AgentTerminalCard />
+            </div>
+          </>
         ) : (
           <div className="glass-panel p-8 sm:p-12 rounded-3xl max-w-xl mx-auto text-center border border-slate-800">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-600 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-pink-500/20">
@@ -525,8 +574,8 @@ export default function App() {
         onClose={() => setIsCreateOpen(false)}
         onCreateGate={handleCreateGate}
         isCreating={isCreating}
-        isConnected={Boolean(account)}
-        isArcNetwork={chainId === ARC_MAINNET.chainId}
+        isConnected={Boolean(account) || isDemoMode}
+        isArcNetwork={chainId === ARC_MAINNET.chainId || isDemoMode}
       />
 
       <TipModal
@@ -535,14 +584,20 @@ export default function App() {
         onSendTip={handleSendTip}
         isTipping={isTipping}
         initialRecipient={tipRecipient}
-        isConnected={Boolean(account)}
-        isArcNetwork={chainId === ARC_MAINNET.chainId}
+        isConnected={Boolean(account) || isDemoMode}
+        isArcNetwork={chainId === ARC_MAINNET.chainId || isDemoMode}
       />
 
       <UnlockedModal
         isOpen={Boolean(selectedUnlockedGate)}
         onClose={() => setSelectedUnlockedGate(null)}
         gate={selectedUnlockedGate}
+      />
+
+      <EmbedWidgetModal
+        isOpen={Boolean(selectedEmbedGate)}
+        onClose={() => setSelectedEmbedGate(null)}
+        gate={selectedEmbedGate}
       />
 
       <GuideModal

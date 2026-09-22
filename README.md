@@ -129,7 +129,7 @@
    git commit -m "feat: 5 high-impact upgrades for ArcGate"
    git push -u origin main
    ```
-2. Go to [Vercel](https://vercel.com) $\to$ **Add New Project** $\to$ Import your `arc-paywall-dapp` repository.
+2. Go to [Vercel](https://vercel.com) $\to$ **Add New Project** $\to$ Import your `https://github.com/prakhardhakad1/arc-paywall-dapp` repository.
 3. Click **Deploy**. Your dApp will be live in 30 seconds!
 
 ---

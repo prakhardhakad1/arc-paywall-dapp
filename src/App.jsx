@@ -27,9 +27,9 @@ const STORAGE_SANDBOX_UNLOCKS_KEY = 'arcgate_sandbox_unlocks_v2';
 const STORAGE_SANDBOX_GATES_KEY = 'arcgate_sandbox_gates_v2';
 const STORAGE_SANDBOX_STATS_KEY = 'arcgate_sandbox_stats_v2';
 
-const STORAGE_LIVE_UNLOCKS_KEY = 'arcgate_live_unlocks_v2';
-const STORAGE_LIVE_GATES_KEY = 'arcgate_live_gates_v2';
-const STORAGE_LIVE_STATS_KEY = 'arcgate_live_stats_v2';
+const STORAGE_LIVE_UNLOCKS_KEY = 'arcgate_live_unlocks_v3';
+const STORAGE_LIVE_GATES_KEY = 'arcgate_live_gates_v3';
+const STORAGE_LIVE_STATS_KEY = 'arcgate_live_stats_v3';
 
 const BASE_STATS = {
   volumeUsdc: '142.50',
@@ -80,11 +80,13 @@ export default function App() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [activeTab, setActiveTab] = useState('explore');
 
-  // Purge legacy v1 corrupted keys on first load
+  // Purge legacy corrupted keys on first load
   useEffect(() => {
     try {
       localStorage.removeItem('arcgate_saved_gates_v1');
       localStorage.removeItem('arcgate_saved_stats_v1');
+      localStorage.removeItem('arcgate_live_unlocks_v2');
+      localStorage.removeItem('arcgate_live_stats_v2');
     } catch (e) {}
   }, []);
 
@@ -464,8 +466,15 @@ export default function App() {
         };
         setSelectedUnlockedGate(revealedGate);
       } else {
-        // Fallback simulation when contract is 0x0
-        await new Promise((resolve) => setTimeout(resolve, 800));
+        // Real on-chain native USDC payment directly to creator's address
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const tx = await signer.sendTransaction({
+          to: gate.creator,
+          value: BigInt(gate.priceUsdcWei),
+        });
+        showToast(`Transaction broadcast: ${tx.hash.slice(0, 10)}... Sub-second finality`, 'info');
+        await tx.wait(1);
         setSelectedUnlockedGate(gate);
       }
 

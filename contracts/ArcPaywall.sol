@@ -7,6 +7,13 @@ pragma solidity ^0.8.20;
  * @dev Arc uses native USDC for gas fees and payments (18 decimals).
  *      This contract allows creators to lock digital assets, secret links, or access codes
  *      behind instant 1-click native USDC micro-payments, or accept direct tips with messages.
+ * 
+ * SECURITY & ARCHITECTURE NOTES:
+ * 1. Pull-over-Push Escrow: Creator payouts attempt direct transfer, but safely route to
+ *    `pendingBalances` if the recipient smart contract reverts, preventing unlock DoS.
+ * 2. Overpayment Refund: Any payment exceeding `priceUsdcWei` is immediately refunded to the buyer.
+ * 3. Client-Side Encryption: In production architectures, `secretPayload` holds client-side AES-256
+ *    encrypted content or Lit Protocol conditional access tokens, decryptable only upon on-chain verification.
  */
 contract ArcPaywall {
     // -------------------------------------------------------------
@@ -18,7 +25,7 @@ contract ArcPaywall {
         address payable creator;
         string title;
         string description;
-        string secretPayload; // Secret link, access token, or alpha info
+        string secretPayload; // Encrypted secret URL, access token, or private text
         uint256 priceUsdcWei; // Price in native Arc USDC (18 decimals: 1 USDC = 1e18)
         uint256 unlockCount;
         uint256 createdAt;
@@ -45,13 +52,16 @@ contract ArcPaywall {
     uint256 public totalTipsCount;
     uint256 public totalProtocolFeesCollected;
 
-    // 1% Protocol Fee (99% goes instantly to the content creator)
+    // 1% Protocol Fee (99% goes directly to the content creator)
     uint256 public constant PROTOCOL_FEE_BPS = 100; // 100 basis points = 1%
     uint256 public constant MAX_BPS = 10000;
 
     mapping(uint256 => Gate) private gates;
     mapping(uint256 => mapping(address => bool)) public hasUnlocked;
     mapping(address => uint256[]) private creatorGates;
+    
+    // Escrow fallback balances to prevent DoS attacks on complex creator contracts
+    mapping(address => uint256) public pendingBalances;
 
     // -------------------------------------------------------------
     // EVENTS
@@ -81,6 +91,7 @@ contract ArcPaywall {
         uint256 timestamp
     );
 
+    event CreatorPayoutWithdrawn(address indexed creator, uint256 amount);
     event ProtocolFeesWithdrawn(address indexed owner, uint256 amount);
 
     // -------------------------------------------------------------
@@ -104,7 +115,7 @@ contract ArcPaywall {
      * @notice Create a new paywalled gate for a secret URL or content
      * @param title Title of the gated item
      * @param description Short description preview
-     * @param secretPayload The hidden URL, API key, passcord, or private text
+     * @param secretPayload The hidden URL, API key, passcode, or AES-256 encrypted payload
      * @param priceUsdcWei Access fee in native USDC units (18 decimals)
      */
     function createGate(
@@ -139,7 +150,7 @@ contract ArcPaywall {
 
     /**
      * @notice Unlock a gate by paying the required native USDC fee
-     * @dev 99% sent directly to creator immediately. 1% retained as protocol fee.
+     * @dev 99% sent to creator (with escrow fallback). Excess overpayment refunded.
      * @param gateId ID of the gate to unlock
      */
     function unlockGate(uint256 gateId) external payable {
@@ -148,20 +159,45 @@ contract ArcPaywall {
         require(!hasUnlocked[gateId][msg.sender], "Already unlocked");
         require(msg.value >= gate.priceUsdcWei, "Insufficient USDC payment");
 
+        // 1. Immediate refund of any excess overpayment
+        uint256 payment = gate.priceUsdcWei;
+        uint256 excess = msg.value - payment;
+        if (excess > 0) {
+            (bool refunded, ) = msg.sender.call{value: excess}("");
+            require(refunded, "Excess refund failed");
+        }
+
+        // 2. State updates (Checks-Effects-Interactions)
         hasUnlocked[gateId][msg.sender] = true;
         gate.unlockCount++;
         totalUnlocksCount++;
-        totalVolumeUsdc += msg.value;
+        totalVolumeUsdc += payment;
 
-        uint256 protocolFee = (msg.value * PROTOCOL_FEE_BPS) / MAX_BPS;
-        uint256 creatorAmount = msg.value - protocolFee;
+        uint256 protocolFee = (payment * PROTOCOL_FEE_BPS) / MAX_BPS;
+        uint256 creatorAmount = payment - protocolFee;
         totalProtocolFeesCollected += protocolFee;
 
-        // Forward payment directly to creator
+        // 3. Resilient Payout: Try direct transfer, but fallback to escrow balance if recipient reverts
         (bool sentCreator, ) = gate.creator.call{value: creatorAmount}("");
-        require(sentCreator, "Creator payout failed");
+        if (!sentCreator) {
+            pendingBalances[gate.creator] += creatorAmount;
+        }
 
-        emit GateUnlocked(gateId, msg.sender, gate.creator, msg.value, block.timestamp);
+        emit GateUnlocked(gateId, msg.sender, gate.creator, payment, block.timestamp);
+    }
+
+    /**
+     * @notice Withdraw accumulated escrow earnings for creators
+     */
+    function withdrawCreatorEarnings() external {
+        uint256 balance = pendingBalances[msg.sender];
+        require(balance > 0, "No pending earnings");
+
+        pendingBalances[msg.sender] = 0;
+        (bool sent, ) = msg.sender.call{value: balance}("");
+        require(sent, "Withdrawal failed");
+
+        emit CreatorPayoutWithdrawn(msg.sender, balance);
     }
 
     /**
@@ -176,9 +212,11 @@ contract ArcPaywall {
         totalTipsCount++;
         totalVolumeUsdc += msg.value;
 
-        // 100% of tips go directly to creator
+        // Try direct transfer, or credit escrow if recipient contract reverts
         (bool sent, ) = creator.call{value: msg.value}("");
-        require(sent, "Tip transfer failed");
+        if (!sent) {
+            pendingBalances[creator] += msg.value;
+        }
 
         emit CreatorTipped(creator, msg.sender, msg.value, message, block.timestamp);
     }

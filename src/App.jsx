@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import confetti from 'canvas-confetti';
-import { ShieldCheck, Sparkles, ExternalLink, ArrowRight, Lock, Zap, Layers, RefreshCw } from 'lucide-react';
+import { Sparkles, Zap } from 'lucide-react';
 
 import Navbar from './components/Navbar';
 import StatsBento from './components/StatsBento';
@@ -22,6 +22,9 @@ import {
 } from './config';
 import { dbService } from './lib/db';
 
+const STORAGE_GATES_KEY = 'arcgate_saved_gates_v1';
+const STORAGE_STATS_KEY = 'arcgate_saved_stats_v1';
+
 export default function App() {
   const [account, setAccount] = useState(null);
   const [chainId, setChainId] = useState(null);
@@ -31,12 +34,36 @@ export default function App() {
   // Interactive Demo Sandbox Mode for Zero-Friction Judge Testing
   const [isDemoMode, setIsDemoMode] = useState(false);
 
-  // Gates State
-  const [gates, setGates] = useState(DEMO_GATES);
-  const [stats, setStats] = useState({
-    volumeUsdc: '142.50',
-    totalGates: '3',
-    totalUnlocks: '134',
+  // Gates State with LocalStorage Hydration
+  const [gates, setGates] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_GATES_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {
+      console.warn('Could not load saved gates from storage:', e);
+    }
+    return DEMO_GATES;
+  });
+
+  // Global Bento Stats with LocalStorage Hydration
+  const [stats, setStats] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_STATS_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.volumeUsdc) return parsed;
+      }
+    } catch (e) {
+      console.warn('Could not load saved stats from storage:', e);
+    }
+    return {
+      volumeUsdc: '142.50',
+      totalGates: '3',
+      totalUnlocks: '134',
+    };
   });
 
   // Modal States
@@ -56,6 +83,16 @@ export default function App() {
   const showToast = (message, type = 'info') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 5000);
+  };
+
+  // Helper to persist gates and stats
+  const persistGatesAndStats = (newGates, newStats) => {
+    try {
+      if (newGates) localStorage.setItem(STORAGE_GATES_KEY, JSON.stringify(newGates));
+      if (newStats) localStorage.setItem(STORAGE_STATS_KEY, JSON.stringify(newStats));
+    } catch (e) {
+      console.warn('Failed to persist to localStorage:', e);
+    }
   };
 
   const isContractConfigured =
@@ -86,17 +123,25 @@ export default function App() {
     checkConnection();
 
     if (window.ethereum) {
-      window.ethereum.on('accountsChanged', (accounts) => {
+      const handleAccountsChanged = (accounts) => {
         if (accounts.length > 0) {
           setAccount(accounts[0]);
         } else {
           setAccount(null);
         }
-      });
+      };
 
-      window.ethereum.on('chainChanged', (hexChainId) => {
+      const handleChainChanged = (hexChainId) => {
         setChainId(parseInt(hexChainId, 16));
-      });
+      };
+
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+      window.ethereum.on('chainChanged', handleChainChanged);
+
+      return () => {
+        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
+        window.ethereum.removeListener('chainChanged', handleChainChanged);
+      };
     }
   }, []);
 
@@ -132,6 +177,11 @@ export default function App() {
     } finally {
       setIsConnecting(false);
     }
+  };
+
+  const handleDisconnect = () => {
+    setAccount(null);
+    showToast('Wallet disconnected', 'info');
   };
 
   const switchNetwork = async () => {
@@ -204,13 +254,16 @@ export default function App() {
           secretPayload: g.secretPayload,
         }));
         setGates(formatted);
+        persistGatesAndStats(formatted, null);
       }
 
-      setStats({
-        volumeUsdc: ethers.formatUnits(contractStats[3], 18),
+      const updatedStats = {
+        volumeUsdc: parseFloat(ethers.formatUnits(contractStats[3], 18)).toFixed(2),
         totalGates: contractStats[0].toString(),
         totalUnlocks: contractStats[1].toString(),
-      });
+      };
+      setStats(updatedStats);
+      persistGatesAndStats(null, updatedStats);
     } catch (err) {
       console.warn('Contract data fetch fallback to demo:', err);
     }
@@ -227,6 +280,8 @@ export default function App() {
   // -------------------------------------------------------------
 
   const handleUnlock = async (gate) => {
+    const gatePriceNum = parseFloat(gate.priceUsdcFormatted || '0.10');
+
     // Zero-friction flow for judges in Sandbox Mode
     if (isDemoMode) {
       setUnlockingId(gate.id);
@@ -238,7 +293,17 @@ export default function App() {
         unlockCount: gate.unlockCount + 1,
       };
 
-      setGates((prev) => prev.map((g) => (g.id === gate.id ? updatedGate : g)));
+      const updatedGates = gates.map((g) => (g.id === gate.id ? updatedGate : g));
+      const updatedStats = {
+        ...stats,
+        totalUnlocks: (parseInt(stats.totalUnlocks || 0) + 1).toString(),
+        volumeUsdc: (parseFloat(stats.volumeUsdc || 0) + gatePriceNum).toFixed(2),
+      };
+
+      setGates(updatedGates);
+      setStats(updatedStats);
+      persistGatesAndStats(updatedGates, updatedStats);
+
       setSelectedUnlockedGate(updatedGate);
       dbService.recordUnlock(gate.id, '0xDemoJudge...Arc', gate.priceUsdcFormatted, '0xSimulatedArcHash');
 
@@ -286,7 +351,17 @@ export default function App() {
           secretPayload: unlockedData.secretPayload,
         };
 
-        setGates((prev) => prev.map((g) => (g.id === gate.id ? updatedGate : g)));
+        const updatedGates = gates.map((g) => (g.id === gate.id ? updatedGate : g));
+        const updatedStats = {
+          ...stats,
+          totalUnlocks: (parseInt(stats.totalUnlocks || 0) + 1).toString(),
+          volumeUsdc: (parseFloat(stats.volumeUsdc || 0) + gatePriceNum).toFixed(2),
+        };
+
+        setGates(updatedGates);
+        setStats(updatedStats);
+        persistGatesAndStats(updatedGates, updatedStats);
+
         setSelectedUnlockedGate(updatedGate);
       } else {
         // Fallback simulation
@@ -296,7 +371,18 @@ export default function App() {
           isUnlocked: true,
           unlockCount: gate.unlockCount + 1,
         };
-        setGates((prev) => prev.map((g) => (g.id === gate.id ? updatedGate : g)));
+
+        const updatedGates = gates.map((g) => (g.id === gate.id ? updatedGate : g));
+        const updatedStats = {
+          ...stats,
+          totalUnlocks: (parseInt(stats.totalUnlocks || 0) + 1).toString(),
+          volumeUsdc: (parseFloat(stats.volumeUsdc || 0) + gatePriceNum).toFixed(2),
+        };
+
+        setGates(updatedGates);
+        setStats(updatedStats);
+        persistGatesAndStats(updatedGates, updatedStats);
+
         setSelectedUnlockedGate(updatedGate);
       }
 
@@ -336,7 +422,7 @@ export default function App() {
         await tx.wait(1);
         await fetchContractGates();
       } else {
-        // Local interactive demo state
+        // Local interactive demo state with localStorage persistence
         await new Promise((resolve) => setTimeout(resolve, 500));
         const localGate = {
           id: gates.length + 1,
@@ -351,11 +437,16 @@ export default function App() {
           isUnlocked: true,
           secretPayload: newGateData.secretPayload,
         };
-        setGates([localGate, ...gates]);
-        setStats((prev) => ({
-          ...prev,
-          totalGates: (parseInt(prev.totalGates) + 1).toString(),
-        }));
+
+        const updatedGates = [localGate, ...gates];
+        const updatedStats = {
+          ...stats,
+          totalGates: (parseInt(stats.totalGates) + 1).toString(),
+        };
+
+        setGates(updatedGates);
+        setStats(updatedStats);
+        persistGatesAndStats(updatedGates, updatedStats);
       }
 
       setIsCreateOpen(false);
@@ -450,6 +541,7 @@ export default function App() {
         chainId={chainId}
         isConnecting={isConnecting}
         onConnect={connectWallet}
+        onDisconnect={handleDisconnect}
         onSwitchNetwork={switchNetwork}
         onOpenCreateModal={() => setIsCreateOpen(true)}
         onOpenGuideModal={() => setIsGuideOpen(true)}

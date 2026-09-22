@@ -1,6 +1,6 @@
 import React from 'react';
-import { X, Award, CheckCircle2, ShieldCheck, Terminal, Cpu, Globe, Rocket, Copy, Check } from 'lucide-react';
-import { ARC_MAINNET, ARC_PAYWALL_CONTRACT_ADDRESS } from '../config';
+import { X, Award, Cpu, Rocket, Copy, Check } from 'lucide-react';
+import { ARC_MAINNET } from '../config';
 
 export default function GuideModal({ isOpen, onClose }) {
   const [copiedRpc, setCopiedRpc] = React.useState(false);

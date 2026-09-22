@@ -7,12 +7,13 @@ export default function UnlockedModal({ isOpen, onClose, gate }) {
   if (!isOpen || !gate) return null;
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(gate.secretPayload);
+    navigator.clipboard.writeText(gate.secretPayload || '');
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const isLink = gate.secretPayload && (gate.secretPayload.startsWith('http://') || gate.secretPayload.startsWith('https://'));
+  // Safely extract valid URL using regex even if payload contains instructions/passcodes
+  const cleanUrl = gate.secretPayload ? gate.secretPayload.match(/https?:\/\/[^\s]+/)?.[0] : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
@@ -83,9 +84,9 @@ export default function UnlockedModal({ isOpen, onClose, gate }) {
 
         {/* Actions */}
         <div className="flex gap-3">
-          {isLink && (
+          {cleanUrl && (
             <a
-              href={gate.secretPayload}
+              href={cleanUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="flex-1 py-3 px-4 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center space-x-2 shadow-lg shadow-emerald-600/20 transition-all"

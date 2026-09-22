@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, Unlock, ExternalLink, Heart, Clock, User, ArrowUpRight, CheckCircle2, Search, Code2, Eye, TrendingUp } from 'lucide-react';
+import { Lock, Unlock, ExternalLink, Heart, Clock, User, ArrowUpRight, CheckCircle2, Search, Code2, Eye, TrendingUp, RotateCcw } from 'lucide-react';
 import { dbService } from '../lib/db';
 
 export default function ExploreGates({
@@ -11,7 +11,9 @@ export default function ExploreGates({
   onOpenEmbedModal,
   unlockingId,
   isArcNetwork,
-  isDemoMode
+  isDemoMode,
+  isGateUnlocked,
+  onResetSandbox,
 }) {
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -48,9 +50,21 @@ export default function ExploreGates({
               </span>
             </h2>
             {isDemoMode && (
-              <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-950/80 text-amber-300 border border-amber-500/40">
-                Sandbox Mode
-              </span>
+              <div className="flex items-center space-x-2">
+                <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-950/80 text-amber-300 border border-amber-500/40">
+                  Sandbox Mode
+                </span>
+                {onResetSandbox && (
+                  <button
+                    onClick={onResetSandbox}
+                    className="inline-flex items-center space-x-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-600 transition-all cursor-pointer shadow-sm"
+                    title="Reset Sandbox Unlocks"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5" />
+                    <span>Reset</span>
+                  </button>
+                )}
+              </div>
             )}
           </div>
           <p className="text-xs sm:text-sm text-slate-400 mt-1">
@@ -74,8 +88,8 @@ export default function ExploreGates({
       {/* Grid of Gates */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filteredGates.map((gate) => {
-          const isCreator = account && gate.creator.toLowerCase() === account.toLowerCase();
-          const isUnlocked = gate.isUnlocked || (isDemoMode && gate.isUnlocked) || isCreator;
+          const isCreator = !isDemoMode && account && gate.creator && gate.creator.toLowerCase() === account.toLowerCase();
+          const isUnlocked = isGateUnlocked ? isGateUnlocked(gate) : (isDemoMode ? Boolean(gate.isUnlocked) : false);
           const isCurrentlyUnlocking = unlockingId === gate.id;
           const stats = dbService.getGateStats(gate.id, gate.unlockCount, parseFloat(gate.priceUsdcFormatted || 0.1));
 

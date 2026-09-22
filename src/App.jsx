@@ -22,8 +22,20 @@ import {
 } from './config';
 import { dbService } from './lib/db';
 
-const STORAGE_GATES_KEY = 'arcgate_saved_gates_v1';
-const STORAGE_STATS_KEY = 'arcgate_saved_stats_v1';
+// Dedicated Storage Keys for Sandbox vs Live Mainnet
+const STORAGE_SANDBOX_UNLOCKS_KEY = 'arcgate_sandbox_unlocks_v2';
+const STORAGE_SANDBOX_GATES_KEY = 'arcgate_sandbox_gates_v2';
+const STORAGE_SANDBOX_STATS_KEY = 'arcgate_sandbox_stats_v2';
+
+const STORAGE_LIVE_UNLOCKS_KEY = 'arcgate_live_unlocks_v2';
+const STORAGE_LIVE_GATES_KEY = 'arcgate_live_gates_v2';
+const STORAGE_LIVE_STATS_KEY = 'arcgate_live_stats_v2';
+
+const BASE_STATS = {
+  volumeUsdc: '142.50',
+  totalGates: '3',
+  totalUnlocks: '134',
+};
 
 // Format and sanitize raw Web3 & MetaMask RPC errors
 const formatWeb3Error = (err, defaultMsg = 'Action failed') => {
@@ -68,40 +80,111 @@ export default function App() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [activeTab, setActiveTab] = useState('explore');
 
+  // Purge legacy v1 corrupted keys on first load
+  useEffect(() => {
+    try {
+      localStorage.removeItem('arcgate_saved_gates_v1');
+      localStorage.removeItem('arcgate_saved_stats_v1');
+    } catch (e) {}
+  }, []);
+
   // Interactive Demo Sandbox Mode for Zero-Friction Judge Testing
   const [isDemoMode, setIsDemoMode] = useState(false);
 
-  // Gates State with LocalStorage Hydration
-  const [gates, setGates] = useState(() => {
+  // SANDBOX ISOLATED STATE
+  const [sandboxUnlockedIds, setSandboxUnlockedIds] = useState(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_GATES_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
+      const saved = localStorage.getItem(STORAGE_SANDBOX_UNLOCKS_KEY);
+      return saved ? JSON.parse(saved) : [];
     } catch (e) {
-      console.warn('Could not load saved gates from storage:', e);
+      return [];
     }
-    return DEMO_GATES;
   });
 
-  // Global Bento Stats with LocalStorage Hydration
-  const [stats, setStats] = useState(() => {
+  const [sandboxCustomGates, setSandboxCustomGates] = useState(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_STATS_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.volumeUsdc) return parsed;
-      }
+      const saved = localStorage.getItem(STORAGE_SANDBOX_GATES_KEY);
+      return saved ? JSON.parse(saved) : [];
     } catch (e) {
-      console.warn('Could not load saved stats from storage:', e);
+      return [];
     }
-    return {
-      volumeUsdc: '142.50',
-      totalGates: '3',
-      totalUnlocks: '134',
-    };
   });
+
+  const [sandboxStats, setSandboxStats] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_SANDBOX_STATS_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return { ...BASE_STATS };
+  });
+
+  // LIVE MAINNET ISOLATED STATE
+  const [liveUnlockedIds, setLiveUnlockedIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_LIVE_UNLOCKS_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  const [liveCustomGates, setLiveCustomGates] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_LIVE_GATES_KEY);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [liveContractGates, setLiveContractGates] = useState([]);
+
+  const [liveStats, setLiveStats] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_LIVE_STATS_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return { ...BASE_STATS };
+  });
+
+  // Dynamically resolve gates and stats based on active environment
+  const currentGates = isDemoMode
+    ? [...sandboxCustomGates, ...DEMO_GATES]
+    : (liveContractGates.length > 0 ? liveContractGates : [...liveCustomGates, ...DEMO_GATES]);
+
+  const currentStats = isDemoMode ? sandboxStats : liveStats;
+
+  // Strict check if a gate is unlocked
+  const isGateUnlocked = (gate) => {
+    if (!gate) return false;
+
+    if (isDemoMode) {
+      return sandboxUnlockedIds.includes(gate.id) || Boolean(gate.isSandboxCreated);
+    }
+
+    if (!account) return false;
+
+    if (gate.creator && gate.creator.toLowerCase() === account.toLowerCase()) {
+      return true;
+    }
+
+    if (gate.isUnlockedOnChain) return true;
+
+    const userUnlocks = liveUnlockedIds[account.toLowerCase()] || [];
+    return userUnlocks.includes(gate.id);
+  };
+
+  const handleResetSandbox = () => {
+    setSandboxUnlockedIds([]);
+    setSandboxCustomGates([]);
+    setSandboxStats({ ...BASE_STATS });
+    try {
+      localStorage.removeItem(STORAGE_SANDBOX_UNLOCKS_KEY);
+      localStorage.removeItem(STORAGE_SANDBOX_GATES_KEY);
+      localStorage.removeItem(STORAGE_SANDBOX_STATS_KEY);
+    } catch (e) {}
+    showToast('Sandbox reset! All demo gates re-locked.', 'info');
+  };
 
   // Modal States
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -120,16 +203,6 @@ export default function App() {
   const showToast = (message, type = 'info') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 5000);
-  };
-
-  // Helper to persist gates and stats
-  const persistGatesAndStats = (newGates, newStats) => {
-    try {
-      if (newGates) localStorage.setItem(STORAGE_GATES_KEY, JSON.stringify(newGates));
-      if (newStats) localStorage.setItem(STORAGE_STATS_KEY, JSON.stringify(newStats));
-    } catch (e) {
-      console.warn('Failed to persist to localStorage:', e);
-    }
   };
 
   const isContractConfigured =
@@ -288,11 +361,10 @@ export default function App() {
           unlockCount: Number(g.unlockCount),
           createdAt: Number(g.createdAt),
           active: g.active,
-          isUnlocked: g.isUnlocked,
+          isUnlockedOnChain: g.isUnlocked,
           secretPayload: g.secretPayload,
         }));
-        setGates(formatted);
-        persistGatesAndStats(formatted, null);
+        setLiveContractGates(formatted);
       }
 
       const updatedStats = {
@@ -300,8 +372,10 @@ export default function App() {
         totalGates: contractStats[0].toString(),
         totalUnlocks: contractStats[1].toString(),
       };
-      setStats(updatedStats);
-      persistGatesAndStats(null, updatedStats);
+      setLiveStats(updatedStats);
+      try {
+        localStorage.setItem(STORAGE_LIVE_STATS_KEY, JSON.stringify(updatedStats));
+      } catch (e) {}
     } catch (err) {
       console.warn('Contract data fetch fallback to demo:', err);
     }
@@ -320,38 +394,40 @@ export default function App() {
   const handleUnlock = async (gate) => {
     const gatePriceNum = parseFloat(gate.priceUsdcFormatted || '0.10');
 
-    // Zero-friction flow for judges in Sandbox Mode
+    // -------------------------------------------------------------
+    // SANDBOX UNLOCK FLOW (Strictly isolated to sandbox)
+    // -------------------------------------------------------------
     if (isDemoMode) {
       setUnlockingId(gate.id);
       await new Promise((resolve) => setTimeout(resolve, 600));
 
-      const updatedGate = {
-        ...gate,
-        isUnlocked: true,
-        unlockCount: gate.unlockCount + 1,
+      const newSandboxUnlocked = Array.from(new Set([...sandboxUnlockedIds, gate.id]));
+      const newSandboxStats = {
+        ...sandboxStats,
+        totalUnlocks: (parseInt(sandboxStats.totalUnlocks || 0) + 1).toString(),
+        volumeUsdc: (parseFloat(sandboxStats.volumeUsdc || 0) + gatePriceNum).toFixed(2),
       };
 
-      const updatedGates = gates.map((g) => (g.id === gate.id ? updatedGate : g));
-      const updatedStats = {
-        ...stats,
-        totalUnlocks: (parseInt(stats.totalUnlocks || 0) + 1).toString(),
-        volumeUsdc: (parseFloat(stats.volumeUsdc || 0) + gatePriceNum).toFixed(2),
-      };
+      setSandboxUnlockedIds(newSandboxUnlocked);
+      setSandboxStats(newSandboxStats);
 
-      setGates(updatedGates);
-      setStats(updatedStats);
-      persistGatesAndStats(updatedGates, updatedStats);
+      try {
+        localStorage.setItem(STORAGE_SANDBOX_UNLOCKS_KEY, JSON.stringify(newSandboxUnlocked));
+        localStorage.setItem(STORAGE_SANDBOX_STATS_KEY, JSON.stringify(newSandboxStats));
+      } catch (e) {}
 
-      setSelectedUnlockedGate(updatedGate);
       dbService.recordUnlock(gate.id, '0xDemo...Arc', gate.priceUsdcFormatted, '0xSimulatedArcHash');
 
       confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
       showToast(`[Sandbox] Gate #${gate.id} unlocked instantly! Secret revealed.`, 'success');
+      setSelectedUnlockedGate(gate);
       setUnlockingId(null);
       return;
     }
 
-    // Live Web3 flow
+    // -------------------------------------------------------------
+    // LIVE MAINNET UNLOCK FLOW (Real on-chain tx with native USDC)
+    // -------------------------------------------------------------
     if (!account) {
       connectWallet();
       return;
@@ -382,47 +458,41 @@ export default function App() {
         await tx.wait(1);
 
         const unlockedData = await contract.getGate(gate.id);
-        const updatedGate = {
+        const revealedGate = {
           ...gate,
-          isUnlocked: true,
-          unlockCount: Number(unlockedData.unlockCount),
           secretPayload: unlockedData.secretPayload,
         };
-
-        const updatedGates = gates.map((g) => (g.id === gate.id ? updatedGate : g));
-        const updatedStats = {
-          ...stats,
-          totalUnlocks: (parseInt(stats.totalUnlocks || 0) + 1).toString(),
-          volumeUsdc: (parseFloat(stats.volumeUsdc || 0) + gatePriceNum).toFixed(2),
-        };
-
-        setGates(updatedGates);
-        setStats(updatedStats);
-        persistGatesAndStats(updatedGates, updatedStats);
-
-        setSelectedUnlockedGate(updatedGate);
+        setSelectedUnlockedGate(revealedGate);
       } else {
-        // Fallback simulation
+        // Fallback simulation when contract is 0x0
         await new Promise((resolve) => setTimeout(resolve, 800));
-        const updatedGate = {
-          ...gate,
-          isUnlocked: true,
-          unlockCount: gate.unlockCount + 1,
-        };
-
-        const updatedGates = gates.map((g) => (g.id === gate.id ? updatedGate : g));
-        const updatedStats = {
-          ...stats,
-          totalUnlocks: (parseInt(stats.totalUnlocks || 0) + 1).toString(),
-          volumeUsdc: (parseFloat(stats.volumeUsdc || 0) + gatePriceNum).toFixed(2),
-        };
-
-        setGates(updatedGates);
-        setStats(updatedStats);
-        persistGatesAndStats(updatedGates, updatedStats);
-
-        setSelectedUnlockedGate(updatedGate);
+        setSelectedUnlockedGate(gate);
       }
+
+      // Record live unlock for this connected wallet address
+      const userKey = account.toLowerCase();
+      const currentAccountUnlocks = liveUnlockedIds[userKey] || [];
+      const updatedAccountUnlocks = Array.from(new Set([...currentAccountUnlocks, gate.id]));
+      const newLiveUnlockedIds = {
+        ...liveUnlockedIds,
+        [userKey]: updatedAccountUnlocks,
+      };
+
+      const newLiveStats = {
+        ...liveStats,
+        totalUnlocks: (parseInt(liveStats.totalUnlocks || 0) + 1).toString(),
+        volumeUsdc: (parseFloat(liveStats.volumeUsdc || 0) + gatePriceNum).toFixed(2),
+      };
+
+      setLiveUnlockedIds(newLiveUnlockedIds);
+      setLiveStats(newLiveStats);
+
+      try {
+        localStorage.setItem(STORAGE_LIVE_UNLOCKS_KEY, JSON.stringify(newLiveUnlockedIds));
+        localStorage.setItem(STORAGE_LIVE_STATS_KEY, JSON.stringify(newLiveStats));
+      } catch (e) {}
+
+      dbService.recordUnlock(gate.id, account, gate.priceUsdcFormatted, '0xArcLiveTxHash');
 
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
       showToast(`Success! Gate #${gate.id} unlocked via Arc Mainnet native USDC.`, 'success');
@@ -440,7 +510,47 @@ export default function App() {
     try {
       const priceWei = ethers.parseUnits(newGateData.priceUsdc, 18);
 
-      if (!isDemoMode && isContractConfigured) {
+      if (isDemoMode) {
+        // Local interactive demo state strictly in Sandbox
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        const newId = Date.now();
+        const localGate = {
+          id: newId,
+          creator: '0xDemo...Arc',
+          title: newGateData.title,
+          description: newGateData.description,
+          priceUsdcWei: priceWei.toString(),
+          priceUsdcFormatted: newGateData.priceUsdc,
+          unlockCount: 0,
+          createdAt: Math.floor(Date.now() / 1000),
+          active: true,
+          secretPayload: newGateData.secretPayload,
+          isSandboxCreated: true,
+        };
+
+        const updatedSandboxGates = [localGate, ...sandboxCustomGates];
+        const updatedSandboxStats = {
+          ...sandboxStats,
+          totalGates: (parseInt(sandboxStats.totalGates || 0) + 1).toString(),
+        };
+
+        setSandboxCustomGates(updatedSandboxGates);
+        setSandboxStats(updatedSandboxStats);
+        setSandboxUnlockedIds((prev) => [...prev, newId]);
+
+        try {
+          localStorage.setItem(STORAGE_SANDBOX_GATES_KEY, JSON.stringify(updatedSandboxGates));
+          localStorage.setItem(STORAGE_SANDBOX_STATS_KEY, JSON.stringify(updatedSandboxStats));
+        } catch (e) {}
+
+        setIsCreateOpen(false);
+        showToast('Sandbox Gate created! Visible in Sandbox Mode.', 'success');
+        confetti({ particleCount: 60, spread: 60 });
+        return;
+      }
+
+      // Live Mainnet creation
+      if (isContractConfigured) {
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
         const contract = new ethers.Contract(
@@ -460,11 +570,11 @@ export default function App() {
         await tx.wait(1);
         await fetchContractGates();
       } else {
-        // Local interactive demo state with localStorage persistence
         await new Promise((resolve) => setTimeout(resolve, 500));
+        const newId = Date.now();
         const localGate = {
-          id: gates.length + 1,
-          creator: account || (isDemoMode ? '0xDemo...Arc' : '0xYourWalletAddress'),
+          id: newId,
+          creator: account || '0xYourWalletAddress',
           title: newGateData.title,
           description: newGateData.description,
           priceUsdcWei: priceWei.toString(),
@@ -472,23 +582,26 @@ export default function App() {
           unlockCount: 0,
           createdAt: Math.floor(Date.now() / 1000),
           active: true,
-          isUnlocked: true,
           secretPayload: newGateData.secretPayload,
         };
 
-        const updatedGates = [localGate, ...gates];
-        const updatedStats = {
-          ...stats,
-          totalGates: (parseInt(stats.totalGates) + 1).toString(),
+        const updatedLiveGates = [localGate, ...liveCustomGates];
+        const updatedLiveStats = {
+          ...liveStats,
+          totalGates: (parseInt(liveStats.totalGates || 0) + 1).toString(),
         };
 
-        setGates(updatedGates);
-        setStats(updatedStats);
-        persistGatesAndStats(updatedGates, updatedStats);
+        setLiveCustomGates(updatedLiveGates);
+        setLiveStats(updatedLiveStats);
+
+        try {
+          localStorage.setItem(STORAGE_LIVE_GATES_KEY, JSON.stringify(updatedLiveGates));
+          localStorage.setItem(STORAGE_LIVE_STATS_KEY, JSON.stringify(updatedLiveStats));
+        } catch (e) {}
       }
 
       setIsCreateOpen(false);
-      showToast('Paywalled Gate published successfully on Arc!', 'success');
+      showToast('Paywalled Gate published successfully on Arc Mainnet!', 'success');
       confetti({ particleCount: 60, spread: 60 });
     } catch (err) {
       console.error(err);
@@ -496,6 +609,14 @@ export default function App() {
     } finally {
       setIsCreating(false);
     }
+  };
+
+  const handleViewSecret = (gate) => {
+    if (!isGateUnlocked(gate)) {
+      showToast('This gate is paywalled! Connect wallet & pay on Arc Mainnet to unlock.', 'error');
+      return;
+    }
+    setSelectedUnlockedGate(gate);
   };
 
   const handleSendTip = async ({ recipient, amountUsdc, message }) => {
@@ -628,7 +749,7 @@ export default function App() {
 
         {/* Bento Grid Stats */}
         <StatsBento
-          stats={stats}
+          stats={currentStats}
           isConnected={Boolean(account) || isDemoMode}
           isArcNetwork={chainId === ARC_MAINNET.chainId}
         />
@@ -637,15 +758,17 @@ export default function App() {
         {activeTab === 'explore' ? (
           <>
             <ExploreGates
-              gates={gates}
+              gates={currentGates}
               account={account}
               onUnlock={handleUnlock}
-              onViewSecret={(gate) => setSelectedUnlockedGate(gate)}
+              onViewSecret={handleViewSecret}
               onTipCreator={handleOpenTipModalForCreator}
               onOpenEmbedModal={(gate) => setSelectedEmbedGate(gate)}
               unlockingId={unlockingId}
               isArcNetwork={chainId === ARC_MAINNET.chainId}
               isDemoMode={isDemoMode}
+              isGateUnlocked={isGateUnlocked}
+              onResetSandbox={handleResetSandbox}
             />
 
             {/* Arc vs Ethereum Visual Benchmark Card */}

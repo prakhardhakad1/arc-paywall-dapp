@@ -1,47 +1,22 @@
-/**
- * ArcGate Lightweight Database & Analytics Layer
- * Designed for Turso / libSQL / SQLite with seamless client fallback.
- * 
- * SCHEMA DDL:
- * 
- * CREATE TABLE IF NOT EXISTS gates (
- *   id INTEGER PRIMARY KEY,
- *   creator TEXT NOT NULL,
- *   title TEXT NOT NULL,
- *   description TEXT,
- *   encrypted_payload TEXT NOT NULL,
- *   price_usdc_wei TEXT NOT NULL,
- *   price_formatted REAL NOT NULL,
- *   unlock_count INTEGER DEFAULT 0,
- *   total_earned_usdc REAL DEFAULT 0,
- *   views_count INTEGER DEFAULT 0,
- *   created_at INTEGER NOT NULL
- * );
- * 
- * CREATE TABLE IF NOT EXISTS unlocks (
- *   id TEXT PRIMARY KEY,
- *   gate_id INTEGER NOT NULL,
- *   buyer_address TEXT NOT NULL,
- *   tx_hash TEXT NOT NULL,
- *   amount_paid_usdc REAL NOT NULL,
- *   unlocked_at INTEGER NOT NULL,
- *   FOREIGN KEY (gate_id) REFERENCES gates(id)
- * );
- * 
- * CREATE TABLE IF NOT EXISTS tips (
- *   id TEXT PRIMARY KEY,
- *   creator_address TEXT NOT NULL,
- *   tipper_address TEXT NOT NULL,
- *   tx_hash TEXT NOT NULL,
- *   amount_usdc REAL NOT NULL,
- *   message TEXT,
- *   created_at INTEGER NOT NULL
- * );
- */
+import { createClient } from '@libsql/client/web';
+
+const tursoUrl = import.meta.env.VITE_TURSO_DATABASE_URL || 'libsql://project2-prakhardhakad1.aws-ap-south-1.turso.io';
+const tursoToken = import.meta.env.VITE_TURSO_AUTH_TOKEN || '';
+
+let tursoClient = null;
+try {
+  if (tursoUrl && tursoToken) {
+    tursoClient = createClient({
+      url: tursoUrl,
+      authToken: tursoToken,
+    });
+  }
+} catch (e) {
+  console.warn('Turso client initialization fallback to local:', e);
+}
 
 const STORAGE_KEY = 'arcgate_analytics_v1';
 
-// In-browser fallback state manager
 function getStoredAnalytics() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -63,17 +38,31 @@ export const dbService = {
   /**
    * Increment view count for an embedded or viewed gate
    */
-  recordGateView(gateId) {
+  async recordGateView(gateId) {
+    // 1. Local fast update
     const data = getStoredAnalytics();
     data.views[gateId] = (data.views[gateId] || 0) + 1;
     saveStoredAnalytics(data);
+
+    // 2. Cloud Turso update
+    if (tursoClient) {
+      try {
+        await tursoClient.execute({
+          sql: `UPDATE gates SET views_count = views_count + 1 WHERE id = ?`,
+          args: [gateId],
+        });
+      } catch (err) {
+        // Non-blocking fallback
+      }
+    }
+
     return data.views[gateId];
   },
 
   /**
    * Record on-chain unlock event
    */
-  recordUnlock(gateId, buyer, amountUsdc, txHash) {
+  async recordUnlock(gateId, buyer, amountUsdc, txHash) {
     const data = getStoredAnalytics();
     data.earnings[gateId] = (data.earnings[gateId] || 0) + parseFloat(amountUsdc || 0);
     data.unlocks.push({
@@ -84,6 +73,48 @@ export const dbService = {
       timestamp: Date.now(),
     });
     saveStoredAnalytics(data);
+
+    if (tursoClient) {
+      try {
+        await tursoClient.execute({
+          sql: `INSERT OR REPLACE INTO unlocks (id, gate_id, buyer_address, tx_hash, amount_paid_usdc, unlocked_at) VALUES (?, ?, ?, ?, ?, ?)`,
+          args: [
+            `${gateId}-${buyer}-${Date.now()}`,
+            gateId,
+            buyer,
+            txHash || '0xsimulated',
+            parseFloat(amountUsdc || 0),
+            Math.floor(Date.now() / 1000),
+          ],
+        });
+      } catch (err) {
+        console.warn('Turso unlock record error:', err);
+      }
+    }
+  },
+
+  /**
+   * Record creator tip
+   */
+  async recordTip(creator, tipper, amountUsdc, message, txHash) {
+    if (tursoClient) {
+      try {
+        await tursoClient.execute({
+          sql: `INSERT INTO tips (id, creator_address, tipper_address, tx_hash, amount_usdc, message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          args: [
+            `tip-${Date.now()}`,
+            creator,
+            tipper,
+            txHash || '0xsimulated',
+            parseFloat(amountUsdc || 0),
+            message || '',
+            Math.floor(Date.now() / 1000),
+          ],
+        });
+      } catch (err) {
+        console.warn('Turso tip record error:', err);
+      }
+    }
   },
 
   /**
@@ -100,40 +131,7 @@ export const dbService = {
     };
   },
 
-  /**
-   * Turso DDL export for production deployment
-   */
-  getSchemaDDL() {
-    return `
--- ArcGate Database Schema (Turso / libSQL / Cloudflare D1)
-CREATE TABLE IF NOT EXISTS gates (
-  id INTEGER PRIMARY KEY,
-  creator TEXT NOT NULL,
-  title TEXT NOT NULL,
-  description TEXT,
-  encrypted_payload TEXT NOT NULL,
-  price_usdc_wei TEXT NOT NULL,
-  unlock_count INTEGER DEFAULT 0,
-  created_at INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS unlocks (
-  id TEXT PRIMARY KEY,
-  gate_id INTEGER NOT NULL,
-  buyer_address TEXT NOT NULL,
-  tx_hash TEXT NOT NULL,
-  amount_paid_usdc REAL NOT NULL,
-  unlocked_at INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS tips (
-  id TEXT PRIMARY KEY,
-  creator_address TEXT NOT NULL,
-  tipper_address TEXT NOT NULL,
-  amount_usdc REAL NOT NULL,
-  message TEXT,
-  created_at INTEGER NOT NULL
-);
-    `.trim();
+  isLiveCloudConnected() {
+    return Boolean(tursoClient);
   }
 };

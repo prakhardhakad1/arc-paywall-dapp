@@ -139,30 +139,36 @@ export default function ExploreGates({
 
       {/* Category Chips and Sort Controls */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-        {/* Category Filter Chips */}
-        <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-          {CATEGORIES.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setSelectedCategory(cat.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
-                selectedCategory === cat.id
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
-                  : 'bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800'
-              }`}
-            >
-              {cat.label}
-            </button>
-          ))}
+        {/* Category Filter Chips with Mobile Scroll Affordance */}
+        <div className="relative flex-1 max-w-full overflow-hidden">
+          <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none pr-8">
+            {CATEGORIES.map((cat) => (
+              <button
+                key={cat.id}
+                onClick={() => setSelectedCategory(cat.id)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                  selectedCategory === cat.id
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                    : 'bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800'
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+          {/* Right edge fade gradient for mobile scroll affordance */}
+          <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-[#07090e] to-transparent sm:hidden"></div>
         </div>
 
-        {/* Sorting Dropdown */}
-        <div className="flex items-center space-x-2 self-end sm:self-auto">
-          <span className="text-xs text-slate-400 flex items-center space-x-1">
-            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
+        {/* Sorting Dropdown with Lighthouse A11y Label */}
+        <div className="flex items-center space-x-2 self-end sm:self-auto flex-shrink-0">
+          <label htmlFor="sort-gates-select" className="text-xs text-slate-300 flex items-center space-x-1 cursor-pointer">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
             <span className="hidden sm:inline">Sort:</span>
-          </span>
+          </label>
           <select
+            id="sort-gates-select"
+            aria-label="Sort paywalled gates"
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
             className="bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 transition-all cursor-pointer font-medium"

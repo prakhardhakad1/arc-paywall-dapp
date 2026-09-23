@@ -7,14 +7,16 @@ export default function AgentTerminalCard() {
   const [isSimulating, setIsSimulating] = useState(false);
   const [logs, setLogs] = useState([]);
 
-  const snippets = {
-    curl: `# 1. Agent queries paywalled endpoint (receives 402 Payment Required)
-curl -i https://arcgate.vercel.app/api/gate/1
+  const liveOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://arc-paywall-dapp.vercel.app';
 
-# 2. Agent signs 0.10 USDC tx on Arc and fetches with proof
-curl -X POST https://arcgate.vercel.app/api/unlock \\
+  const snippets = {
+    curl: `# 1. Agent queries paywalled endpoint (receives real HTTP 402 Payment Required)
+curl -i ${liveOrigin}/api/gate/1
+
+# 2. Agent signs 0.10 USDC tx on Arc and fetches with on-chain proof
+curl -X POST ${liveOrigin}/api/unlock \\
   -H "Content-Type: application/json" \\
-  -H "X-Arc-Tx-Hash: 0x9f81a7...3b42" \\
+  -H "X-Arc-Tx-Hash: 0x9f81a7c3e5b128da401f89c62b48d591a3c7e4b2d8f019c5a6e38b47219d50" \\
   -d '{"gate_id": 1, "agent_id": "agent-gpt4o-alpha"}'`,
 
     python: `# Python Agentic Commerce with Arc Sub-Second Finality
@@ -31,7 +33,7 @@ tx_hash = paywall_contract.functions.unlockGate(1).transact({
 })
 
 # 3. Retrieve decrypted payload
-res = requests.post("https://arcgate.vercel.app/api/unlock", headers={
+res = requests.post("${liveOrigin}/api/unlock", headers={
     "X-Arc-Tx-Hash": tx_hash.hex()
 })
 print("Agent Knowledge Unlocked:", res.json()["secret_payload"])`,
@@ -50,15 +52,26 @@ export const arcPaywallTool = new DynamicStructuredTool({
     // Instant settlement in <1s!
     const tx = await contract.unlockGate(gateId, { value: ethers.parseEther("0.10") });
     await tx.wait(1);
-    return await contract.getGateSecret(gateId);
+    const res = await fetch("${liveOrigin}/api/unlock", {
+      method: "POST",
+      headers: { "X-Arc-Tx-Hash": tx.hash, "Content-Type": "application/json" },
+      body: JSON.stringify({ gate_id: gateId })
+    });
+    return await res.json();
   }
 });`
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(snippets[activeTab]);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(snippets[activeTab]);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }
+    } catch (err) {
+      console.warn('Clipboard write permission denied:', err);
+    }
   };
 
   const runSimulation = () => {
@@ -67,7 +80,7 @@ export const arcPaywallTool = new DynamicStructuredTool({
     setLogs([]);
 
     const steps = [
-      { text: '[AGENT] 🤖 Autonomous bot querying: /api/secret?gate_id=1', delay: 200 },
+      { text: '[AGENT] 🤖 Autonomous bot querying: /api/gate/1', delay: 200 },
       { text: '[SERVER] 🛑 HTTP 402 Payment Required: 0.10 USDC on Arc Mainnet (Chain 5042)', delay: 600, color: 'text-amber-400' },
       { text: '[AGENT] ⚡ Signing native USDC micro-payment (Tx: 0x9f81a7c3...3b42)', delay: 1100, color: 'text-cyan-300' },
       { text: '[NETWORK] 🚀 Arc Consensus confirmed in 0.42s (Sub-second finality)', delay: 1700, color: 'text-emerald-400' },
@@ -100,7 +113,7 @@ export const arcPaywallTool = new DynamicStructuredTool({
           <h3 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
             Autonomous AI Agent Micropayments
           </h3>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl">
+          <p className="text-xs sm:text-sm text-slate-300 mt-1 max-w-2xl leading-relaxed">
             ArcGate is built for both human creators and autonomous AI agents. AI bots can programmatically unlock high-value datasets and API tools using HTTP 402 payment headers.
           </p>
         </div>
@@ -109,70 +122,79 @@ export const arcPaywallTool = new DynamicStructuredTool({
         <button
           onClick={runSimulation}
           disabled={isSimulating}
-          className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 shadow-sm transition-all hover:scale-105 active:scale-95 disabled:opacity-50"
+          className="inline-flex items-center space-x-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 transition-all cursor-pointer disabled:opacity-50"
         >
-          <Play className="w-3.5 h-3.5 fill-cyan-400" />
-          <span>{isSimulating ? 'Executing Agent Flow...' : 'Simulate Agent Unlock'}</span>
+          {isSimulating ? (
+            <>
+              <div className="w-3.5 h-3.5 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin"></div>
+              <span>Simulating Agent Payment...</span>
+            </>
+          ) : (
+            <>
+              <Play className="w-3.5 h-3.5 fill-cyan-400 text-cyan-400" />
+              <span>Simulate HTTP 402 Flow</span>
+            </>
+          )}
         </button>
       </div>
 
-      {/* Terminal Container */}
-      <div className="rounded-2xl bg-[#03060c] border border-slate-800 shadow-2xl overflow-hidden font-mono text-xs">
-        
-        {/* Terminal Header Bar */}
-        <div className="px-4 py-2.5 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between">
+      {/* Terminal Window */}
+      <div className="bg-[#05070a] rounded-2xl border border-slate-800/80 overflow-hidden shadow-2xl">
+        {/* Terminal Header */}
+        <div className="flex items-center justify-between px-4 py-3 bg-slate-900/80 border-b border-slate-800">
           <div className="flex items-center space-x-2">
-            <div className="w-3 h-3 rounded-full bg-rose-500/80"></div>
-            <div className="w-3 h-3 rounded-full bg-amber-500/80"></div>
-            <div className="w-3 h-3 rounded-full bg-emerald-500/80"></div>
-            <span className="text-[11px] text-slate-400 ml-2 font-mono">arcgate-agent-client ~ bash</span>
+            <div className="flex space-x-1.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80"></span>
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80"></span>
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80"></span>
+            </div>
+            <span className="text-[11px] font-mono text-slate-400 ml-2">arcgate-agent-client</span>
           </div>
 
-          <div className="flex items-center space-x-2">
+          {/* Language Tabs */}
+          <div className="flex items-center space-x-1 bg-slate-950 p-0.5 rounded-lg border border-slate-800">
             {['curl', 'python', 'typescript'].map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-2.5 py-1 text-[11px] rounded-lg transition-all ${
+                className={`px-2.5 py-1 text-[10px] font-mono font-medium rounded-md transition-all cursor-pointer ${
                   activeTab === tab
                     ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                    : 'text-slate-400 hover:text-white'
+                    : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
-                {tab.toUpperCase()}
+                {tab}
               </button>
             ))}
-            <button
-              onClick={handleCopy}
-              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-all ml-2"
-              title="Copy code"
-            >
-              {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            </button>
           </div>
         </div>
 
-        {/* Code Content */}
-        <div className="p-4 sm:p-5 overflow-x-auto text-slate-300 whitespace-pre">
-          {snippets[activeTab]}
-        </div>
+        {/* Terminal Content */}
+        <div className="p-4 sm:p-5 font-mono text-xs overflow-x-auto relative">
+          <button
+            onClick={handleCopy}
+            aria-label="Copy terminal snippet"
+            className="absolute top-4 right-4 p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer"
+          >
+            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+          </button>
+          <pre className="text-slate-300 leading-relaxed">{snippets[activeTab]}</pre>
 
-        {/* Live Simulation Output Console if active */}
-        {logs.length > 0 && (
-          <div className="p-4 bg-slate-950/95 border-t border-slate-800/80 space-y-1.5">
-            <div className="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-1">
-              Live Agent Execution Stream
-            </div>
-            {logs.map((log, index) => (
-              <div key={index} className={`text-xs ${log.color} animate-in fade-in slide-in-from-left-2 duration-150`}>
-                {log.text}
+          {/* Interactive Simulation Log Box */}
+          {logs.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-slate-800 space-y-1.5 animate-in fade-in duration-200">
+              <div className="text-[10px] uppercase font-bold tracking-wider text-slate-400 mb-2">
+                Execution Output (Arc Sub-Second Engine):
               </div>
-            ))}
-          </div>
-        )}
-
+              {logs.map((log, idx) => (
+                <div key={idx} className={`text-xs ${log.color}`}>
+                  {log.text}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-
     </div>
   );
 }

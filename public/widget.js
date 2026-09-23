@@ -9,9 +9,13 @@
       if (script.getAttribute('data-loaded')) return;
       script.setAttribute('data-loaded', 'true');
 
-      var gateId = script.getAttribute('data-gate-id') || '1';
-      var theme = script.getAttribute('data-theme') || 'dark';
-      var host = script.src.split('/widget.js')[0] || window.location.origin;
+      // Sanitize gateId to safe integer against XSS
+      var rawGateId = script.getAttribute('data-gate-id') || '1';
+      var gateId = parseInt(rawGateId, 10);
+      if (isNaN(gateId) || gateId <= 0) gateId = 1;
+
+      var theme = script.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+      var host = (script.src.split('/widget.js')[0] || window.location.origin).replace(/\/$/, '');
 
       var container = document.createElement('div');
       container.className = 'arcgate-widget-container';
@@ -26,25 +30,39 @@
         'border-radius: 16px; padding: 20px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);' +
         'display: flex; flex-direction: column; gap: 12px; max-width: 520px;';
 
-      card.innerHTML =
-        '<div style="display: flex; align-items: center; justify-content: space-between;">' +
-        '  <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #38bdf8; font-weight: 700;">' +
-        '    🛡️ Protected by ArcGate • Arc Mainnet' +
-        '  </span>' +
-        '  <span style="font-size: 11px; font-family: monospace; color: #94a3b8;">Gate #' + gateId + '</span>' +
-        '</div>' +
-        '<div style="font-size: 14px; font-weight: 600; line-height: 1.4;">' +
-        '  This exclusive content is locked behind an instant native USDC micro-payment on Circle\'s Arc Mainnet.' +
-        '</div>' +
-        '<a href="' + host + '?unlock=' + gateId + '" target="_blank" rel="noopener noreferrer" style="' +
-        '  display: inline-flex; align-items: center; justify-content: center; gap: 8px;' +
-        '  background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%); color: #ffffff;' +
-        '  text-decoration: none; font-size: 13px; font-weight: 700; padding: 10px 18px;' +
-        '  border-radius: 12px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); text-align: center;' +
-        '  transition: transform 0.15s ease;' +
-        '">' +
-        '  ⚡ Unlock on ArcGate (USDC)' +
-        '</a>';
+      var header = document.createElement('div');
+      header.style.cssText = 'display: flex; align-items: center; justify-content: space-between;';
+
+      var protoSpan = document.createElement('span');
+      protoSpan.style.cssText = 'font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #38bdf8; font-weight: 700;';
+      protoSpan.textContent = '🛡️ Protected by ArcGate • Arc Mainnet';
+
+      var gateSpan = document.createElement('span');
+      gateSpan.style.cssText = 'font-size: 11px; font-family: monospace; color: #94a3b8;';
+      gateSpan.textContent = 'Gate #' + gateId;
+
+      header.appendChild(protoSpan);
+      header.appendChild(gateSpan);
+
+      var desc = document.createElement('div');
+      desc.style.cssText = 'font-size: 14px; font-weight: 600; line-height: 1.4;';
+      desc.textContent = 'This exclusive content is locked behind an instant native USDC micro-payment on Circle\'s Arc Mainnet.';
+
+      var cta = document.createElement('a');
+      cta.href = host + '?gate=' + encodeURIComponent(gateId);
+      cta.target = '_blank';
+      cta.rel = 'noopener noreferrer';
+      cta.style.cssText =
+        'display: inline-flex; align-items: center; justify-content: center; gap: 8px;' +
+        'background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%); color: #ffffff;' +
+        'text-decoration: none; font-size: 13px; font-weight: 700; padding: 10px 18px;' +
+        'border-radius: 12px; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); text-align: center;' +
+        'transition: transform 0.15s ease;';
+      cta.textContent = '⚡ Unlock on ArcGate (USDC)';
+
+      card.appendChild(header);
+      card.appendChild(desc);
+      card.appendChild(cta);
 
       script.parentNode.insertBefore(card, script.nextSibling);
     });

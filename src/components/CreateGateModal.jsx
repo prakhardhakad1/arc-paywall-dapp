@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Lock, Sparkles, AlertCircle, ShieldAlert } from 'lucide-react';
 import { ARC_MAINNET } from '../config';
+import { encryptPayload } from '../lib/crypto';
 
 export default function CreateGateModal({ isOpen, onClose, onCreateGate, isCreating, isConnected, isArcNetwork }) {
   const [title, setTitle] = useState('');
@@ -9,9 +10,19 @@ export default function CreateGateModal({ isOpen, onClose, onCreateGate, isCreat
   const [priceUsdc, setPriceUsdc] = useState('0.10');
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
 
@@ -41,22 +52,36 @@ export default function CreateGateModal({ isOpen, onClose, onCreateGate, isCreat
       return;
     }
 
-    onCreateGate({
-      title: title.trim(),
-      description: description.trim(),
-      secretPayload: secretPayload.trim(),
-      priceUsdc: priceUsdc.trim()
-    });
+    try {
+      // Encrypt the confidential payload on the client before storing or deploying
+      const encryptedPayload = await encryptPayload(secretPayload.trim());
+
+      onCreateGate({
+        title: title.trim(),
+        description: description.trim(),
+        secretPayload: encryptedPayload,
+        priceUsdc: priceUsdc.trim()
+      });
+    } catch (err) {
+      console.error('Encryption failed:', err);
+      setError('Failed to encrypt secret payload. Web Crypto API required.');
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-gate-modal-title"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+    >
       <div className="glass-panel w-full max-w-lg rounded-3xl p-6 sm:p-8 border border-slate-700/80 shadow-2xl relative">
         
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-all"
+          aria-label="Close modal"
+          className="absolute top-5 right-5 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>
@@ -67,7 +92,7 @@ export default function CreateGateModal({ isOpen, onClose, onCreateGate, isCreat
             <Lock className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="text-lg font-bold text-white tracking-tight">
+            <h3 id="create-gate-modal-title" className="text-lg font-bold text-white tracking-tight">
               Create Paywalled Gate
             </h3>
             <p className="text-xs text-slate-400">

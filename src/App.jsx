@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ethers } from 'ethers';
 import confetti from 'canvas-confetti';
-import { Sparkles, Zap } from 'lucide-react';
+import { Sparkles, Zap, AlertTriangle, FlaskConical, AlertCircle, Info } from 'lucide-react';
 
 import Navbar from './components/Navbar';
 import StatsBento from './components/StatsBento';
@@ -26,6 +26,14 @@ import {
   DEMO_GATES,
 } from './config';
 import { dbService } from './lib/db';
+
+// Accessible confetti helper respecting user's prefers-reduced-motion preference
+const triggerConfetti = (opts = {}) => {
+  if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    return;
+  }
+  confetti(opts);
+};
 
 // Dedicated Storage Keys for Sandbox vs Live Mainnet
 const STORAGE_SANDBOX_UNLOCKS_KEY = 'arcgate_sandbox_unlocks_v4';
@@ -241,14 +249,17 @@ export default function App() {
   // Total Unlocked Count for Library Badge
   const unlockedCount = currentGates.filter((g) => isGateUnlocked(g)).length;
 
-  // Deep-Link & URL Routing Effect (?gate=1 or #gate-1)
+  // Deep-Link & URL Routing Effect (?gate=1, ?unlock=1, /gate/1, /embed/1, #gate-1)
   useEffect(() => {
     const handleUrlRouting = () => {
       try {
         const params = new URLSearchParams(window.location.search);
-        const gateParam = params.get('gate');
-        if (gateParam) {
-          const found = currentGates.find((g) => g.id.toString() === gateParam.toString());
+        const queryGate = params.get('gate') || params.get('unlock');
+        const pathMatch = window.location.pathname.match(/^\/(?:gate|embed)\/(\d+)/i);
+        const targetGateId = queryGate || (pathMatch ? pathMatch[1] : null);
+
+        if (targetGateId) {
+          const found = currentGates.find((g) => g.id.toString() === targetGateId.toString());
           if (found) {
             setSelectedSingleGate(found);
             setActiveTab('gate-view');
@@ -289,7 +300,7 @@ export default function App() {
     } catch (e) {}
   };
 
-  const handleToggleGateActive = (gateId) => {
+  const handleToggleGateActive = async (gateId) => {
     if (isDemoMode) {
       const updated = currentGates.map((g) =>
         g.id === gateId ? { ...g, active: g.active === false ? true : false } : g
@@ -302,6 +313,29 @@ export default function App() {
       return;
     }
 
+    if (isContractConfigured && window.ethereum && account) {
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const contract = new ethers.Contract(
+          ARC_PAYWALL_CONTRACT_ADDRESS,
+          ARC_PAYWALL_ABI,
+          signer
+        );
+        const currentActive = currentGates.find((g) => g.id === gateId)?.active !== false;
+        const tx = await contract.setGateActive(gateId, !currentActive);
+        showToast(`Updating gate on Arc: ${tx.hash.slice(0, 10)}...`, 'info');
+        await tx.wait(1);
+        await fetchContractGates();
+        showToast('Gate status updated on Arc Mainnet!', 'success');
+        return;
+      } catch (err) {
+        console.error(err);
+        showToast(formatWeb3Error(err, 'Failed to update gate on-chain'), 'error');
+        return;
+      }
+    }
+
     const updatedLive = currentGates.map((g) =>
       g.id === gateId ? { ...g, active: g.active === false ? true : false } : g
     );
@@ -309,7 +343,7 @@ export default function App() {
     try {
       localStorage.setItem(STORAGE_LIVE_GATES_KEY, JSON.stringify(updatedLive));
     } catch (e) {}
-    showToast('Gate status updated on Arc Mainnet!', 'info');
+    showToast('Gate status updated (Contract standby - saved locally)', 'info');
   };
 
   const handleWithdrawEarnings = async () => {
@@ -322,7 +356,7 @@ export default function App() {
           localStorage.setItem(STORAGE_PENDING_EARNINGS_KEY, '0.00');
         } catch (e) {}
         playUnlockChime();
-        confetti({ particleCount: 80, spread: 70 });
+        triggerConfetti({ particleCount: 80, spread: 70 });
         showToast('[Sandbox] Claimed escrow earnings to creator wallet!', 'success');
         return;
       }
@@ -332,31 +366,28 @@ export default function App() {
         return;
       }
 
-      if (isContractConfigured) {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const signer = await provider.getSigner();
-        const contract = new ethers.Contract(
-          ARC_PAYWALL_CONTRACT_ADDRESS,
-          ARC_PAYWALL_ABI,
-          signer
-        );
-        const tx = await contract.withdrawCreatorEarnings();
-        showToast(`Withdrawal broadcast: ${tx.hash.slice(0, 10)}...`, 'info');
-        await tx.wait(1);
-        setPendingEarnings('0.00');
-        try {
-          localStorage.setItem(STORAGE_PENDING_EARNINGS_KEY, '0.00');
-        } catch (e) {}
-      } else {
-        await new Promise((resolve) => setTimeout(resolve, 800));
-        setPendingEarnings('0.00');
-        try {
-          localStorage.setItem(STORAGE_PENDING_EARNINGS_KEY, '0.00');
-        } catch (e) {}
+      if (!isContractConfigured) {
+        showToast('Contract in Standby (Pending Deployment). No escrowed funds on Arc Mainnet to withdraw.', 'warning');
+        return;
       }
 
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(
+        ARC_PAYWALL_CONTRACT_ADDRESS,
+        ARC_PAYWALL_ABI,
+        signer
+      );
+      const tx = await contract.withdrawCreatorEarnings();
+      showToast(`Withdrawal broadcast: ${tx.hash.slice(0, 10)}...`, 'info');
+      await tx.wait(1);
+      setPendingEarnings('0.00');
+      try {
+        localStorage.setItem(STORAGE_PENDING_EARNINGS_KEY, '0.00');
+      } catch (e) {}
+
       playUnlockChime();
-      confetti({ particleCount: 80, spread: 70 });
+      triggerConfetti({ particleCount: 80, spread: 70 });
       showToast('Successfully claimed earnings on Arc Mainnet!', 'success');
     } catch (err) {
       console.error(err);
@@ -470,8 +501,16 @@ export default function App() {
     }
   };
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
     setAccount(null);
+    if (window.ethereum && window.ethereum.request) {
+      try {
+        await window.ethereum.request({
+          method: 'wallet_revokePermissions',
+          params: [{ eth_accounts: {} }],
+        });
+      } catch (e) {}
+    }
     showToast('Wallet disconnected', 'info');
   };
 
@@ -513,14 +552,19 @@ export default function App() {
   };
 
   // -------------------------------------------------------------
-  // CONTRACT DATA FETCHING
+  // CONTRACT DATA FETCHING (Supports read-only JsonRpcProvider)
   // -------------------------------------------------------------
 
   const fetchContractGates = async () => {
-    if (isDemoMode || !isContractConfigured || !window.ethereum) return;
+    if (isDemoMode || !isContractConfigured) return;
 
     try {
-      const provider = new ethers.BrowserProvider(window.ethereum);
+      let provider;
+      if (window.ethereum && account && chainId === ARC_MAINNET.chainId) {
+        provider = new ethers.BrowserProvider(window.ethereum);
+      } else {
+        provider = new ethers.JsonRpcProvider(ARC_MAINNET.rpcUrl);
+      }
       const contract = new ethers.Contract(
         ARC_PAYWALL_CONTRACT_ADDRESS,
         ARC_PAYWALL_ABI,
@@ -551,10 +595,10 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (account && chainId === ARC_MAINNET.chainId && !isDemoMode) {
+    if (!isDemoMode && isContractConfigured) {
       fetchContractGates();
     }
-  }, [account, chainId, isDemoMode]);
+  }, [account, chainId, isDemoMode, isContractConfigured]);
 
   // -------------------------------------------------------------
   // ACTIONS: UNLOCK, CREATE, TIP
@@ -589,14 +633,17 @@ export default function App() {
         localStorage.setItem(STORAGE_PENDING_EARNINGS_KEY, newPending);
       } catch (e) {}
 
-      dbService.recordUnlock(gate.id, '0xDemo...Arc', gate.priceUsdcFormatted, '0xSimulatedArcHash');
+      dbService.recordUnlock(gate.id, '0xDemo...Arc', gate.priceUsdcFormatted, '0xArcSandboxSimulatedTx_77e9b10c89fa21d3');
 
-      confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+      triggerConfetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
       playUnlockChime();
-      showToast(`[Sandbox] Gate #${gate.id} unlocked instantly! Secret revealed.`, 'success');
-      setSelectedUnlockedGate(gate);
+      showToast(`[Sandbox] Gate #${gate.id} unlocked instantly! Access receipt or content below.`, 'success');
+      
+      // Open ONLY receipt modal first to avoid double-modal collision
       setReceiptData({
         isOpen: true,
+        isDemoMode: true,
+        buyer: '0xDemo...Arc',
         txHash: '0xArcSandboxSimulatedTx_77e9b10c89fa21d3',
         amountUsdc: gate.priceUsdcFormatted,
         gateTitle: gate.title,
@@ -619,46 +666,36 @@ export default function App() {
       return;
     }
 
+    if (!isContractConfigured) {
+      showToast('ArcPaywall contract is currently in Standby (Pending Deployment). Switch to 🧪 Sandbox Mode to test full unlocks with simulated Arc funds!', 'warning');
+      return;
+    }
+
     setUnlockingId(gate.id);
     let broadcastTx = null;
 
     try {
-      if (isContractConfigured) {
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const signer = await provider.getSigner();
-        const contract = new ethers.Contract(
-          ARC_PAYWALL_CONTRACT_ADDRESS,
-          ARC_PAYWALL_ABI,
-          signer
-        );
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const contract = new ethers.Contract(
+        ARC_PAYWALL_CONTRACT_ADDRESS,
+        ARC_PAYWALL_ABI,
+        signer
+      );
 
-        const tx = await contract.unlockGate(gate.id, {
-          value: BigInt(gate.priceUsdcWei),
-        });
-        broadcastTx = tx;
+      const tx = await contract.unlockGate(gate.id, {
+        value: BigInt(gate.priceUsdcWei),
+      });
+      broadcastTx = tx;
 
-        showToast(`Transaction broadcast: ${tx.hash.slice(0, 10)}... Sub-second finality`, 'info');
-        await tx.wait(1);
+      showToast(`Transaction broadcast: ${tx.hash.slice(0, 10)}... Sub-second finality`, 'info');
+      await tx.wait(1);
 
+      // Cache revealed secret payload on-chain
+      try {
         const unlockedData = await contract.getGate(gate.id);
-        const revealedGate = {
-          ...gate,
-          secretPayload: unlockedData.secretPayload,
-        };
-        setSelectedUnlockedGate(revealedGate);
-      } else {
-        // Real on-chain native USDC payment directly to creator's address
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const signer = await provider.getSigner();
-        const tx = await signer.sendTransaction({
-          to: ethers.getAddress(gate.creator.toLowerCase()),
-          value: BigInt(gate.priceUsdcWei),
-        });
-        broadcastTx = tx;
-        showToast(`Transaction broadcast: ${tx.hash.slice(0, 10)}... Sub-second finality`, 'info');
-        await tx.wait(1);
-        setSelectedUnlockedGate(gate);
-      }
+        gate.secretPayload = unlockedData.secretPayload;
+      } catch (e) {}
 
       // Record live unlock for this connected wallet address
       const userKey = account.toLowerCase();
@@ -687,13 +724,17 @@ export default function App() {
         localStorage.setItem(STORAGE_PENDING_EARNINGS_KEY, newPending);
       } catch (e) {}
 
-      dbService.recordUnlock(gate.id, account, gate.priceUsdcFormatted, '0xArcLiveTxHash');
+      dbService.recordUnlock(gate.id, account, gate.priceUsdcFormatted, broadcastTx?.hash || '0xArcLiveTxHash');
 
       playUnlockChime();
-      confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
+      triggerConfetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
       showToast(`Success! Gate #${gate.id} unlocked via Arc Mainnet native USDC.`, 'success');
+      
+      // Open receipt modal sequentially (no double-modal collision)
       setReceiptData({
         isOpen: true,
+        isDemoMode: false,
+        buyer: account,
         txHash: broadcastTx?.hash || '0xArcLiveTxHash_48b19a22cc81b',
         amountUsdc: gate.priceUsdcFormatted,
         gateTitle: gate.title,
@@ -716,7 +757,7 @@ export default function App() {
       if (isDemoMode) {
         // Local interactive demo state strictly in Sandbox
         await new Promise((resolve) => setTimeout(resolve, 500));
-        const newId = Date.now();
+        const newId = Math.floor(1000 + Math.random() * 9000);
         const localGate = {
           id: newId,
           creator: '0xDemo...Arc',
@@ -741,7 +782,7 @@ export default function App() {
 
         setIsCreateOpen(false);
         showToast('Sandbox Gate created! Visible in Sandbox Mode.', 'success');
-        confetti({ particleCount: 60, spread: 60 });
+        triggerConfetti({ particleCount: 60, spread: 60 });
         return;
       }
 
@@ -765,9 +806,10 @@ export default function App() {
         showToast(`Gate publishing broadcast: ${tx.hash.slice(0, 10)}...`, 'info');
         await tx.wait(1);
         await fetchContractGates();
+        showToast('Paywalled Gate published successfully on Arc Mainnet!', 'success');
       } else {
         await new Promise((resolve) => setTimeout(resolve, 500));
-        const newId = Date.now();
+        const newId = Math.floor(1000 + Math.random() * 9000);
         const localGate = {
           id: newId,
           creator: account || '0xYourWalletAddress',
@@ -787,11 +829,11 @@ export default function App() {
         try {
           localStorage.setItem(STORAGE_LIVE_GATES_KEY, JSON.stringify(updatedLiveGates));
         } catch (e) {}
+        showToast('Gate created (Contract standby - saved locally)', 'success');
       }
 
       setIsCreateOpen(false);
-      showToast('Paywalled Gate published successfully on Arc Mainnet!', 'success');
-      confetti({ particleCount: 60, spread: 60 });
+      triggerConfetti({ particleCount: 60, spread: 60 });
     } catch (err) {
       console.error(err);
       showToast(formatWeb3Error(err, 'Gate creation failed'), 'error');
@@ -817,7 +859,7 @@ export default function App() {
         setIsTipOpen(false);
         playTipChime();
         showToast(`[Sandbox] Sent ${amountUsdc} USDC tip to ${recipient.slice(0, 6)}...!`, 'success');
-        confetti({ particleCount: 70, spread: 80 });
+        triggerConfetti({ particleCount: 70, spread: 80 });
         return;
       }
 
@@ -852,7 +894,7 @@ export default function App() {
       setIsTipOpen(false);
       playTipChime();
       showToast(`Sent ${amountUsdc} USDC tip directly to ${recipient.slice(0, 6)}...!`, 'success');
-      confetti({ particleCount: 70, spread: 80 });
+      triggerConfetti({ particleCount: 70, spread: 80 });
     } catch (err) {
       console.error(err);
       showToast(formatWeb3Error(err, 'Tipping failed'), 'error');
@@ -896,11 +938,57 @@ export default function App() {
         onOpenCreateModal={() => setIsCreateOpen(true)}
         onOpenGuideModal={() => setIsGuideOpen(true)}
         activeTab={activeTab}
-        setActiveTab={setActiveTab}
+        setActiveTab={(tab) => {
+          setActiveTab(tab);
+          try {
+            window.history.pushState(null, '', window.location.pathname);
+          } catch (e) {}
+        }}
         isDemoMode={isDemoMode}
         setIsDemoMode={setIsDemoMode}
         unlockedCount={unlockedCount}
       />
+
+      {/* Wrong Network Persistent Warning Banner */}
+      {!isDemoMode && account && chainId && chainId !== ARC_MAINNET.chainId && (
+        <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2.5 backdrop-blur-md">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+            <div className="flex items-center space-x-2 text-amber-300">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-400" />
+              <span>
+                <strong>Wrong Network:</strong> Wallet connected to Chain ID <code className="font-mono bg-black/40 px-1.5 py-0.5 rounded text-amber-200">{chainId}</code>. ArcGate settles on Circle's Arc Mainnet (<code className="font-mono bg-black/40 px-1.5 py-0.5 rounded text-amber-200">5042</code>).
+              </span>
+            </div>
+            <button
+              onClick={switchNetwork}
+              className="px-3 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs transition-all cursor-pointer whitespace-nowrap shadow-sm"
+            >
+              Switch to Arc Mainnet
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Contract Standby Notice in Live Mode */}
+      {!isDemoMode && !isContractConfigured && (
+        <div className="bg-cyan-950/40 border-b border-cyan-500/20 px-4 py-2 backdrop-blur-md">
+          <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs">
+            <div className="flex items-center space-x-2 text-cyan-300">
+              <Info className="w-4 h-4 flex-shrink-0 text-cyan-400" />
+              <span>
+                <strong>Live Mainnet Mode:</strong> ArcPaywall contract is in Standby (Pending Deployment). Test all 1-click unlocks, escrow splits, and instant receipts with simulated Arc funds in Sandbox Mode!
+              </span>
+            </div>
+            <button
+              onClick={() => setIsDemoMode(true)}
+              className="px-3 py-1 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 font-semibold text-xs transition-all cursor-pointer whitespace-nowrap flex items-center space-x-1"
+            >
+              <FlaskConical className="w-3.5 h-3.5" />
+              <span>Switch to Sandbox Mode</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 flex-1 w-full">
@@ -1145,6 +1233,7 @@ export default function App() {
         receipt={receiptData}
         onAccessContent={() => {
           const g = currentGates.find((x) => x.id === receiptData?.gateId);
+          setReceiptData(null);
           if (g) handleViewSecret(g);
         }}
       />

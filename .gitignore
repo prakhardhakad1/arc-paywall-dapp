@@ -12,10 +12,14 @@ dist
 dist-ssr
 *.local
 
-# Environment variables
+# Environment variables and private keys
 .env
-.env.local
-.env.*.local
+.env*
+*.env
+*.pem
+*.key
+*.secret
+*.local
 
 # Editor directories and files
 .vscode/*

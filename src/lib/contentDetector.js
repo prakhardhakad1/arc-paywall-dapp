@@ -2,18 +2,16 @@ import React from 'react';
 import { Code2, Send, FileText, Database, Key, ExternalLink } from 'lucide-react';
 
 /**
- * Detects content type and returns badge metadata based on gate details
+ * Detects content type based STRICTLY on public gate title and description
+ * (Never exposes or inspects secretPayload to classify public badges)
  */
 export function getContentType(gate) {
   if (!gate) return defaultBadge();
 
-  const title = (gate.title || '').toLowerCase();
-  const desc = (gate.description || '').toLowerCase();
-  const payload = (gate.secretPayload || '').toLowerCase();
-  const combined = `${title} ${desc} ${payload}`;
+  const publicText = `${gate.title || ''} ${gate.description || ''}`.toLowerCase();
 
-  // GitHub / Code
-  if (combined.includes('github.com') || combined.includes('repo') || combined.includes('starter kit') || combined.includes('solidity') || combined.includes('codebase')) {
+  // 1. GitHub / Code Repository
+  if (/\b(github|repo|repository|code|template|starter kit|solidity|codebase|source code|sdk)\b/i.test(publicText)) {
     return {
       type: 'code',
       label: 'GitHub Repo',
@@ -26,8 +24,8 @@ export function getContentType(gate) {
     };
   }
 
-  // Telegram / Community Invite
-  if (combined.includes('t.me/') || combined.includes('telegram') || combined.includes('channel') || combined.includes('invite link') || combined.includes('discord')) {
+  // 2. Telegram / Community Invite
+  if (/\b(telegram|t\.me|channel|discord|community|invite|invites|chat|private group|vip group)\b/i.test(publicText)) {
     return {
       type: 'invite',
       label: 'Telegram VIP',
@@ -40,8 +38,8 @@ export function getContentType(gate) {
     };
   }
 
-  // Research PDF / Blueprint
-  if (combined.includes('.pdf') || combined.includes('paper') || combined.includes('blueprint') || combined.includes('research') || combined.includes('spec')) {
+  // 3. Research PDF / Blueprint / Whitepaper
+  if (/\b(pdf|blueprint|research|whitepaper|spec|specification|architecture blueprint)\b/i.test(publicText)) {
     return {
       type: 'research',
       label: 'Research PDF',
@@ -54,8 +52,8 @@ export function getContentType(gate) {
     };
   }
 
-  // Dataset / Signals / Data feeds
-  if (combined.includes('dataset') || combined.includes('data') || combined.includes('parquet') || combined.includes('database') || combined.includes('signals') || combined.includes('csv') || combined.includes('metrics') || combined.includes('alpha signals')) {
+  // 4. Dataset / Quantitative Signals
+  if (/\b(dataset|datasets|parquet|csv|signals|data feeds|quant signals)\b/i.test(publicText)) {
     return {
       type: 'dataset',
       label: 'Alpha Dataset',
@@ -68,8 +66,8 @@ export function getContentType(gate) {
     };
   }
 
-  // API Token / Secret Access Key
-  if (combined.includes('api') || combined.includes('token') || combined.includes('secret') || combined.includes('passcode') || combined.includes('credential')) {
+  // 5. API Token / Endpoint Access
+  if (/\b(api key|api token|access token|api endpoint|bearer token)\b/i.test(publicText)) {
     return {
       type: 'api',
       label: 'API Key',

@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://arc-paywall-dapp.vercel.app/sitemap.xml

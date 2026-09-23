@@ -6,9 +6,19 @@ export default function EmbedWidgetModal({ isOpen, onClose, gate }) {
   const [copied, setCopied] = useState(false);
   const [previewFeedback, setPreviewFeedback] = useState(false);
 
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isOpen, onClose]);
+
   if (!isOpen || !gate) return null;
 
-  const currentHost = typeof window !== 'undefined' ? window.location.origin : 'https://arcgate.vercel.app';
+  const currentHost = typeof window !== 'undefined' ? window.location.origin : 'https://arc-paywall-dapp.vercel.app';
 
   const snippets = {
     script: `<!-- 1-Line ArcGate Paywall Embed -->
@@ -43,10 +53,16 @@ export default function PremiumArticle() {
 }`
   };
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(snippets[activeTab]);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const handleCopy = async () => {
+    if (navigator?.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(snippets[activeTab]);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } catch (err) {
+        console.warn('Clipboard write permission denied:', err);
+      }
+    }
   };
 
   const handlePreviewClick = () => {
@@ -55,13 +71,19 @@ export default function PremiumArticle() {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="embed-modal-title"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+    >
       <div className="glass-panel w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-3xl p-6 sm:p-8 border border-slate-700/80 shadow-2xl relative">
         
         {/* Close */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-all"
+          aria-label="Close modal"
+          className="absolute top-5 right-5 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>
@@ -73,7 +95,7 @@ export default function PremiumArticle() {
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h3 className="text-lg font-bold text-white tracking-tight">
+              <h3 id="embed-modal-title" className="text-lg font-bold text-white tracking-tight">
                 1-Line Embed Widget Generator
               </h3>
               <span className="text-[10px] font-semibold text-cyan-300 bg-cyan-950/80 border border-cyan-500/30 px-2 py-0.5 rounded-full">

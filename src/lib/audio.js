@@ -5,6 +5,23 @@
  */
 
 let audioCtx = null;
+const AUDIO_MUTE_KEY = 'arcgate_audio_muted';
+
+export function isAudioMuted() {
+  if (typeof window === 'undefined') return false;
+  try {
+    return localStorage.getItem(AUDIO_MUTE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function setAudioMuted(muted) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(AUDIO_MUTE_KEY, muted ? 'true' : 'false');
+  } catch {}
+}
 
 function getAudioContext() {
   if (typeof window === 'undefined') return null;
@@ -25,6 +42,7 @@ function getAudioContext() {
  * Tone 1: Ab5 (830.6 Hz) -> Tone 2: C6 (1046.5 Hz) with gentle harmonic decay
  */
 export function playUnlockChime() {
+  if (isAudioMuted()) return;
   try {
     const ctx = getAudioContext();
     if (!ctx) return;
@@ -83,6 +101,7 @@ export function playUnlockChime() {
  * Cheerful ascending triple-tone for creator tipping
  */
 export function playTipChime() {
+  if (isAudioMuted()) return;
   try {
     const ctx = getAudioContext();
     if (!ctx) return;

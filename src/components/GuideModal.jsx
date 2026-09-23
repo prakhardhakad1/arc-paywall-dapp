@@ -5,22 +5,44 @@ import { ARC_MAINNET } from '../config';
 export default function GuideModal({ isOpen, onClose }) {
   const [copiedRpc, setCopiedRpc] = React.useState(false);
 
+  React.useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') onClose();
+    };
+    if (isOpen) {
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
-  const copyRpc = () => {
-    navigator.clipboard.writeText(ARC_MAINNET.rpcUrl);
-    setCopiedRpc(true);
-    setTimeout(() => setCopiedRpc(false), 2000);
+  const copyRpc = async () => {
+    if (navigator?.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(ARC_MAINNET.rpcUrl);
+        setCopiedRpc(true);
+        setTimeout(() => setCopiedRpc(false), 2000);
+      } catch (err) {
+        console.warn('Clipboard write permission denied:', err);
+      }
+    }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="guide-modal-title"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
+    >
       <div className="glass-panel w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-6 sm:p-8 border border-slate-700/80 shadow-2xl relative">
         
         {/* Close */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-all"
+          aria-label="Close modal"
+          className="absolute top-5 right-5 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>
@@ -32,7 +54,7 @@ export default function GuideModal({ isOpen, onClose }) {
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <h3 className="text-xl font-extrabold text-white tracking-tight">
+              <h3 id="guide-modal-title" className="text-xl font-extrabold text-white tracking-tight">
                 ArcGate Architecture & Protocol Guide
               </h3>
             </div>

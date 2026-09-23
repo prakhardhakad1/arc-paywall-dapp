@@ -2,6 +2,9 @@ import assert from 'node:assert';
 import { ethers } from 'ethers';
 import { ARC_MAINNET, ARC_PAYWALL_ABI, DEMO_GATES } from './src/config.js';
 import { getContentType } from './src/lib/contentDetector.js';
+import { encryptPayload, decryptPayload, isEncryptedEnvelope } from './src/lib/crypto.js';
+import { formatGateId, formatReceiptId, formatLicenseId } from './src/lib/typedIds.js';
+import { isAudioMuted, setAudioMuted } from './src/lib/audio.js';
 
 console.log('🧪 Starting Full QA Verification Suite for ArcGate...\n');
 
@@ -19,6 +22,9 @@ const requiredFunctions = [
   'getRecentGates',
   'getProtocolStats',
   'withdrawCreatorEarnings',
+  'setGateActive',
+  'setGatePrice',
+  'protocolFeesAvailable',
   'pendingBalances',
   'gateCount',
   'totalVolumeUsdc',
@@ -29,7 +35,7 @@ const requiredFunctions = [
 for (const fn of requiredFunctions) {
   assert.ok(iface.getFunction(fn), `Missing ABI function: ${fn}`);
 }
-console.log(`  ✓ All ${requiredFunctions.length} essential ABI functions parsed successfully.`);
+console.log(`  ✓ All ${requiredFunctions.length} essential ABI functions (including setGateActive & protocolFeesAvailable) parsed successfully.`);
 
 // -------------------------------------------------------------------
 // TEST 2: Rich Content Badge Detector (Phase 2, Feature 5)
@@ -187,4 +193,72 @@ assert.strictEqual(libraryGates[0].id, 1);
 assert.strictEqual(libraryGates[1].id, 3);
 console.log('  ✓ My Library correctly filters exactly the user unlocked assets.');
 
-console.log('\n🎉 ALL 8 TESTS PASSED WITH ZERO ERRORS!\n');
+// -------------------------------------------------------------------
+// TEST 9: Client-Side AES-256-GCM Encryption / Decryption Round-Trip
+// -------------------------------------------------------------------
+console.log('\nTest 9: Verifying AES-256-GCM Cryptographic Authenticity...');
+const sampleSecret = 'https://github.com/circle-fintech/arc-defi-alpha-core?auth=sec_token_99';
+const testKey = 'arcgate_secret_key_unit_test';
+
+const encryptedEnvelope = await encryptPayload(sampleSecret, testKey);
+assert.ok(encryptedEnvelope.startsWith('enc:aes-gcm:'), 'Ciphertext envelope must start with enc:aes-gcm:');
+assert.ok(isEncryptedEnvelope(encryptedEnvelope), 'isEncryptedEnvelope helper must identify envelope');
+assert.ok(!encryptedEnvelope.includes(sampleSecret), 'Ciphertext must NEVER contain plaintext secret');
+
+const decryptedText = await decryptPayload(encryptedEnvelope, testKey);
+assert.strictEqual(decryptedText, sampleSecret, 'Decrypted text must match original plaintext');
+
+// Verify decryption failure on invalid key
+const failedResult = await decryptPayload(encryptedEnvelope, 'wrong_key_should_fail');
+assert.ok(failedResult.includes('Could not decrypt'), 'Decryption with wrong key must return authentication error');
+console.log('  ✓ AES-256-GCM authenticated encryption, decryption, and tamper rejection verified.');
+
+// -------------------------------------------------------------------
+// TEST 10: Typed IDs in Sandbox vs Live Mainnet
+// -------------------------------------------------------------------
+console.log('\nTest 10: Verifying Typed IDs Namespace Separation...');
+const sbxGateId = formatGateId(1, true);
+const liveGateId = formatGateId(1, false);
+assert.strictEqual(sbxGateId, 'gate_sbx_0001');
+assert.strictEqual(liveGateId, 'gate_arc_0001');
+
+const sampleTx = '0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef';
+const sbxRcpt = formatReceiptId(sampleTx, true);
+const liveRcpt = formatReceiptId(sampleTx, false);
+assert.ok(sbxRcpt.startsWith('rcpt_sbx_'), 'Sandbox receipt ID must start with rcpt_sbx_');
+assert.ok(liveRcpt.startsWith('rcpt_arc_'), 'Live receipt ID must start with rcpt_arc_');
+
+const sampleBuyer = '0x9999999999999999999999999999999999999999';
+const sbxLic = formatLicenseId(1, sampleBuyer, true);
+const liveLic = formatLicenseId(1, sampleBuyer, false);
+assert.ok(sbxLic.startsWith('lic_sbx_'), 'Sandbox license ID must start with lic_sbx_');
+assert.ok(liveLic.startsWith('lic_arc_'), 'Live license ID must start with lic_arc_');
+console.log('  ✓ Typed IDs strictly enforce sandbox (_sbx_) vs mainnet (_arc_) isolation.');
+
+// -------------------------------------------------------------------
+// TEST 11: Demo Gates Payload Cryptographic Privacy
+// -------------------------------------------------------------------
+console.log('\nTest 11: Verifying Demo Gates Payload Privacy...');
+for (const gate of DEMO_GATES) {
+  assert.ok(isEncryptedEnvelope(gate.secretPayload), `Demo gate #${gate.id} secret must be an encrypted envelope`);
+  assert.ok(!gate.secretPayload.includes('ghp_'), `Demo gate #${gate.id} must NOT contain plaintext GitHub tokens`);
+  assert.ok(!gate.secretPayload.includes('t.me/+'), `Demo gate #${gate.id} must NOT contain plaintext invite links`);
+}
+console.log('  ✓ All 3 demo gates have zero plaintext credentials in client code.');
+
+// -------------------------------------------------------------------
+// TEST 12: Content Detector Privacy Isolation
+// -------------------------------------------------------------------
+console.log('\nTest 12: Verifying Content Classifier Privacy Isolation...');
+const decoyGate = {
+  id: 99,
+  title: 'Community Access Pass',
+  description: 'Join private VIP group',
+  // Decoy secret contains github.com, but public metadata says VIP group
+  secretPayload: 'https://github.com/decoy/should-not-be-read-by-classifier',
+};
+const decoyClassification = getContentType(decoyGate);
+assert.strictEqual(decoyClassification.category, 'invites', 'Classifier must classify based ONLY on public title/description');
+console.log('  ✓ Content classifier never reads or leaks private secretPayload.');
+
+console.log('\n🎉 ALL 12 VERIFICATION TESTS PASSED WITH ZERO ERRORS!\n');

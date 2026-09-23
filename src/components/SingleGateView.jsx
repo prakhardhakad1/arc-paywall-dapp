@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Lock,
   Unlock,
@@ -15,9 +15,12 @@ import {
   Code2,
   Zap,
   TrendingUp,
+  FlaskConical,
+  Key,
 } from 'lucide-react';
 import { getContentType } from '../lib/contentDetector';
 import { formatGateId, formatCreatorHandle } from '../lib/typedIds';
+import { decryptPayload, getDemoGateKey } from '../lib/crypto';
 
 export default function SingleGateView({
   gate,
@@ -32,6 +35,30 @@ export default function SingleGateView({
 }) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedSecret, setCopiedSecret] = useState(false);
+  const [decryptedText, setDecryptedText] = useState('');
+  const [isDecrypting, setIsDecrypting] = useState(false);
+
+  const isUnlocked = isGateUnlocked(gate);
+
+  // Client-side decryption of payload when unlocked
+  useEffect(() => {
+    if (isUnlocked && gate?.secretPayload) {
+      setIsDecrypting(true);
+      const gateKey = getDemoGateKey(gate.id);
+      decryptPayload(gate.secretPayload, gateKey)
+        .then((text) => {
+          setDecryptedText(text);
+          setIsDecrypting(false);
+        })
+        .catch(() => {
+          setDecryptedText(gate.secretPayload);
+          setIsDecrypting(false);
+        });
+    } else {
+      setDecryptedText('');
+      setIsDecrypting(false);
+    }
+  }, [isUnlocked, gate]);
 
   if (!gate) {
     return (
@@ -53,9 +80,9 @@ export default function SingleGateView({
 
   const badge = getContentType(gate);
   const BadgeIcon = badge.icon;
-  const isUnlocked = isGateUnlocked(gate);
   const isCurrentlyUnlocking = unlockingId === gate.id;
-  const cleanUrl = gate.secretPayload ? gate.secretPayload.match(/https?:\/\/[^\s]+/)?.[0] : null;
+  const rawPayload = decryptedText || gate.secretPayload;
+  const cleanUrl = rawPayload ? rawPayload.match(/https?:\/\/[^\s]+/)?.[0] : null;
 
   const truncateAddress = (addr) => {
     if (!addr) return '';
@@ -68,18 +95,29 @@ export default function SingleGateView({
     return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
-  const handleCopyShareLink = () => {
+  const handleCopyShareLink = async () => {
     const url = `${window.location.origin}?gate=${gate.id}`;
-    navigator.clipboard.writeText(url);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2000);
+    if (navigator?.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2000);
+      } catch (err) {
+        console.warn('Clipboard write permission denied:', err);
+      }
+    }
   };
 
-  const handleCopySecret = () => {
-    if (gate.secretPayload) {
-      navigator.clipboard.writeText(gate.secretPayload);
-      setCopiedSecret(true);
-      setTimeout(() => setCopiedSecret(false), 2000);
+  const handleCopySecret = async () => {
+    const textToCopy = decryptedText || gate.secretPayload;
+    if (textToCopy && navigator?.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(textToCopy);
+        setCopiedSecret(true);
+        setTimeout(() => setCopiedSecret(false), 2000);
+      } catch (err) {
+        console.warn('Clipboard write permission denied:', err);
+      }
     }
   };
 
@@ -135,10 +173,17 @@ export default function SingleGateView({
               {formatGateId(gate.id, isDemoMode)}
             </span>
 
-            <span className="inline-flex items-center space-x-1 text-xs font-semibold text-cyan-300 bg-cyan-950/60 border border-cyan-500/30 px-2.5 py-1 rounded-full">
-              <Zap className="w-3 h-3 text-cyan-400" />
-              <span>Arc Mainnet</span>
-            </span>
+            {isDemoMode ? (
+              <span className="inline-flex items-center space-x-1 text-xs font-semibold text-amber-300 bg-amber-950/60 border border-amber-500/30 px-2.5 py-1 rounded-full">
+                <FlaskConical className="w-3 h-3 text-amber-400" />
+                <span>Sandbox Simulation</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center space-x-1 text-xs font-semibold text-cyan-300 bg-cyan-950/60 border border-cyan-500/30 px-2.5 py-1 rounded-full">
+                <Zap className="w-3 h-3 text-cyan-400" />
+                <span>Arc Mainnet</span>
+              </span>
+            )}
           </div>
 
           {isUnlocked ? (
@@ -187,7 +232,7 @@ export default function SingleGateView({
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 flex items-center space-x-1.5">
                 <ShieldCheck className="w-4 h-4" />
-                <span>Protected Content Payload</span>
+                <span>Protected Content (Decrypted)</span>
               </span>
               <button
                 onClick={handleCopySecret}
@@ -199,7 +244,14 @@ export default function SingleGateView({
             </div>
 
             <div className="p-4 rounded-2xl bg-black/60 border border-slate-800 font-mono text-xs sm:text-sm text-emerald-200 break-all select-all whitespace-pre-wrap">
-              {gate.secretPayload}
+              {isDecrypting ? (
+                <div className="flex items-center space-x-2 text-slate-400 py-1">
+                  <Key className="w-4 h-4 animate-spin text-cyan-400" />
+                  <span>Decrypting secret payload client-side...</span>
+                </div>
+              ) : (
+                decryptedText || gate.secretPayload
+              )}
             </div>
 
             {cleanUrl && (

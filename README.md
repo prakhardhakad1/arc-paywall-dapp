@@ -17,14 +17,15 @@
 
 ### 2. 🔌 1-Line Embed Widget Generator (Developer Tooling)
 - Enables creators and developers to embed ArcGate paywalls directly into WordPress blogs, Notion docs, Substack, Medium, or custom React/Next.js dApps:
-  - **HTML**: `<script src="https://arcgate.vercel.app/widget.js" data-gate-id="1"></script>`
-  - **Iframe**: `<iframe src="https://arcgate.vercel.app/embed/1" ...></iframe>`
+  - **HTML**: `<script src="https://arc-paywall-dapp.vercel.app/widget.js" data-gate-id="1"></script>`
+  - **Iframe**: `<iframe src="https://arc-paywall-dapp.vercel.app?gate=1" ...></iframe>`
   - **React Component**: `<ArcGatePaywall gateId={1} price="0.10 USDC" />`
 
-### 3. 🤖 AI Agent Terminal & Agentic Commerce (HTTP 402)
-- Built for machine-to-machine micropayments.
-- Includes an interactive terminal on the homepage demonstrating how autonomous AI agents query protected datasets and authorize micro-transactions using `HTTP 402 Payment Required` headers and `X-Arc-Tx-Hash`.
-- Click **"Simulate Agent Unlock"** to watch the real-time agentic execution flow confirm in 0.42 seconds!
+### 3. 🤖 Real HTTP 402 Agentic Commerce API (Vercel Serverless)
+- Authentic machine-to-machine micropayments powered by Vercel serverless functions:
+  - `GET /api/gate/:id` $\to$ Returns `HTTP 402 Payment Required` with `X-Arc-Paywall-Protocol`, `X-Arc-Chain-Id: 5042`, and `X-Arc-Price-USDC` headers when locked.
+  - `POST /api/unlock` $\to$ Verifies on-chain settlement and transaction hash before releasing decrypted content.
+  - Interactive agent terminal directly on the homepage lets visitors and judges test real-time agentic micropayments in 0.42s!
 
 ### 4. 📊 Arc vs. Ethereum Visual Benchmark
 - A high-impact side-by-side comparison card directly highlighting why Arc's native USDC gas asset is revolutionary:
@@ -34,8 +35,10 @@
   - **Settlement**: < 1.0s Sub-Second vs. 30s+
   - **$0.10 Payments**: 100% Viable vs. Economically Broken
 
-### 5. 🗄️ Lightweight Turso / SQLite Backend Schema
-- Includes a complete DDL schema and client in `src/lib/db.js` for Turso / libSQL / SQLite edge storage to track gate views, conversion rates, and on-chain unlock logs.
+### 5. 🔒 Client-Side AES-256-GCM Cryptographic Paywalls
+- **Cryptographic Honesty**: Secrets are encrypted client-side in the browser via native Web Crypto API (`crypto.subtle`) using AES-256-GCM and PBKDF2 (100,000 rounds) before ever touching storage or smart contracts.
+- **Zero Plaintext Secrets**: Calldata and storage contain only ciphertext envelopes (`enc:aes-gcm:...`).
+- **Zero Credential Exposure**: Hardened client-side architecture with zero leaked API keys or database tokens in the public bundle.
 
 ---
 
@@ -80,13 +83,19 @@
 
 - **Network**: Arc Mainnet (Chain ID: `5042` / `0x13b2`)
 - **Native Currency**: `USDC` (18 decimals)
-- **Functions**:
+- **Security Hardening**:
+  - `protocolFeesAvailable` accumulator prevents owner from draining creator escrow during protocol fee sweeps.
+  - `nonReentrant` mutex and strict Checks-Effects-Interactions (CEI) in `unlockGate` and `withdrawCreatorEarnings`.
+  - Zero owner backdoors: `getGate` strictly checks buyer unlock state.
+- **Key Functions**:
   - `createGate(string title, string description, string secretPayload, uint256 priceUsdcWei)`: Creates a new paywalled secret gate.
   - `unlockGate(uint256 gateId) payable`: Unlocks a gate by sending the required native USDC fee.
   - `tipCreator(address payable creator, string message) payable`: Sends a direct P2P USDC tip with an on-chain thank-you message.
-  - `getGate(uint256 gateId)`: Returns public metadata, but only reveals `secretPayload` if the caller has unlocked the gate.
+  - `setGateActive(uint256 gateId, bool active)`: Allows creators to pause/resume gates on-chain.
+  - `setGatePrice(uint256 gateId, uint256 newPriceWei)`: Allows creators to update gate pricing.
+  - `getGate(uint256 gateId)`: Returns public metadata, revealing `secretPayload` only if the caller has unlocked the gate.
   - `getRecentGates(uint256 offset, uint256 limit)`: Fetches paginated gates for the frontend without external indexers.
-  - `getProtocolStats()`: Returns real-time analytics (total volume, unlocks, gates created).
+  - `getProtocolStats()`: Returns real-time analytics (total volume, unlocks, tips, and gates created).
 
 ---
 

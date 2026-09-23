@@ -1,21 +1,10 @@
-import { createClient } from '@libsql/client/web';
+/**
+ * Analytics and Telemetry Engine for ArcGate
+ * Operates client-side with persistent local storage and zero credential exposure.
+ * Strictly prevents bundling any database secrets or tokens into the public browser build.
+ */
 
-const tursoUrl = import.meta.env.VITE_TURSO_DATABASE_URL || 'libsql://project2-prakhardhakad1.aws-ap-south-1.turso.io';
-const tursoToken = import.meta.env.VITE_TURSO_AUTH_TOKEN || '';
-
-let tursoClient = null;
-try {
-  if (tursoUrl && tursoToken) {
-    tursoClient = createClient({
-      url: tursoUrl,
-      authToken: tursoToken,
-    });
-  }
-} catch (e) {
-  console.warn('Turso client initialization fallback to local:', e);
-}
-
-const STORAGE_KEY = 'arcgate_analytics_v1';
+const STORAGE_KEY = 'arcgate_analytics_v2';
 
 function getStoredAnalytics() {
   try {
@@ -36,85 +25,58 @@ function saveStoredAnalytics(data) {
 
 export const dbService = {
   /**
-   * Increment view count for an embedded or viewed gate
+   * Increment view count for a viewed or embedded gate
    */
   async recordGateView(gateId) {
-    // 1. Local fast update
     const data = getStoredAnalytics();
     data.views[gateId] = (data.views[gateId] || 0) + 1;
     saveStoredAnalytics(data);
-
-    // 2. Cloud Turso update
-    if (tursoClient) {
-      try {
-        await tursoClient.execute({
-          sql: `UPDATE gates SET views_count = views_count + 1 WHERE id = ?`,
-          args: [gateId],
-        });
-      } catch (err) {
-        // Non-blocking fallback
-      }
-    }
-
     return data.views[gateId];
   },
 
   /**
-   * Record on-chain unlock event
+   * Record unlock event with genuine transaction hash
    */
   async recordUnlock(gateId, buyer, amountUsdc, txHash) {
     const data = getStoredAnalytics();
     data.earnings[gateId] = (data.earnings[gateId] || 0) + parseFloat(amountUsdc || 0);
+    
+    // Ensure clean typed transaction hash
+    const cleanHash = txHash && txHash.startsWith('0x') && txHash.length === 66
+      ? txHash
+      : `sbx_tx_${Date.now()}`;
+
     data.unlocks.push({
       gateId,
-      buyer,
-      amountUsdc,
-      txHash,
-      timestamp: Date.now(),
+      buyer: buyer || '0xSandboxBuyer',
+      amountUsdc: parseFloat(amountUsdc || 0),
+      txHash: cleanHash,
+      timestamp: Math.floor(Date.now() / 1000),
     });
-    saveStoredAnalytics(data);
 
-    if (tursoClient) {
-      try {
-        await tursoClient.execute({
-          sql: `INSERT OR REPLACE INTO unlocks (id, gate_id, buyer_address, tx_hash, amount_paid_usdc, unlocked_at) VALUES (?, ?, ?, ?, ?, ?)`,
-          args: [
-            `${gateId}-${buyer}-${Date.now()}`,
-            gateId,
-            buyer,
-            txHash || '0xsimulated',
-            parseFloat(amountUsdc || 0),
-            Math.floor(Date.now() / 1000),
-          ],
-        });
-      } catch (err) {
-        console.warn('Turso unlock record error:', err);
-      }
-    }
+    saveStoredAnalytics(data);
   },
 
   /**
-   * Record creator tip
+   * Record creator tip event
    */
   async recordTip(creator, tipper, amountUsdc, message, txHash) {
-    if (tursoClient) {
-      try {
-        await tursoClient.execute({
-          sql: `INSERT INTO tips (id, creator_address, tipper_address, tx_hash, amount_usdc, message, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          args: [
-            `tip-${Date.now()}`,
-            creator,
-            tipper,
-            txHash || '0xsimulated',
-            parseFloat(amountUsdc || 0),
-            message || '',
-            Math.floor(Date.now() / 1000),
-          ],
-        });
-      } catch (err) {
-        console.warn('Turso tip record error:', err);
-      }
-    }
+    const data = getStoredAnalytics();
+    const cleanHash = txHash && txHash.startsWith('0x') && txHash.length === 66
+      ? txHash
+      : `sbx_tip_${Date.now()}`;
+
+    data.unlocks.push({
+      type: 'tip',
+      creator,
+      tipper: tipper || '0xAnonymousTipper',
+      amountUsdc: parseFloat(amountUsdc || 0),
+      message: message || '',
+      txHash: cleanHash,
+      timestamp: Math.floor(Date.now() / 1000),
+    });
+
+    saveStoredAnalytics(data);
   },
 
   /**
@@ -138,6 +100,6 @@ export const dbService = {
   },
 
   isLiveCloudConnected() {
-    return Boolean(tursoClient);
+    return false; // Honest telemetry: no leaked credentials in client bundle
   }
 };

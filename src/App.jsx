@@ -28,18 +28,19 @@ import {
 import { dbService } from './lib/db';
 
 // Dedicated Storage Keys for Sandbox vs Live Mainnet
-const STORAGE_SANDBOX_UNLOCKS_KEY = 'arcgate_sandbox_unlocks_v2';
-const STORAGE_SANDBOX_GATES_KEY = 'arcgate_sandbox_gates_v2';
-const STORAGE_SANDBOX_STATS_KEY = 'arcgate_sandbox_stats_v2';
+const STORAGE_SANDBOX_UNLOCKS_KEY = 'arcgate_sandbox_unlocks_v4';
+const STORAGE_SANDBOX_COUNTS_KEY = 'arcgate_sandbox_counts_v4';
+const STORAGE_SANDBOX_GATES_KEY = 'arcgate_sandbox_gates_v4';
+const STORAGE_PENDING_EARNINGS_KEY = 'arcgate_pending_earnings_v4';
 
-const STORAGE_LIVE_UNLOCKS_KEY = 'arcgate_live_unlocks_v3';
-const STORAGE_LIVE_GATES_KEY = 'arcgate_live_gates_v3';
-const STORAGE_LIVE_STATS_KEY = 'arcgate_live_stats_v3';
+const STORAGE_LIVE_UNLOCKS_KEY = 'arcgate_live_unlocks_v5';
+const STORAGE_LIVE_COUNTS_KEY = 'arcgate_live_counts_v5';
+const STORAGE_LIVE_GATES_KEY = 'arcgate_live_gates_v5';
 
 const BASE_STATS = {
-  volumeUsdc: '142.50',
+  volumeUsdc: '0.00',
   totalGates: '3',
-  totalUnlocks: '134',
+  totalUnlocks: '0',
 };
 
 // Format and sanitize raw Web3 & MetaMask RPC errors
@@ -85,13 +86,16 @@ export default function App() {
   const [isConnecting, setIsConnecting] = useState(false);
   const [activeTab, setActiveTab] = useState('explore');
 
-  // Purge legacy corrupted keys on first load
+  // Purge legacy mock data / corrupted keys on first load
   useEffect(() => {
     try {
       localStorage.removeItem('arcgate_saved_gates_v1');
       localStorage.removeItem('arcgate_saved_stats_v1');
-      localStorage.removeItem('arcgate_live_unlocks_v2');
+      localStorage.removeItem('arcgate_sandbox_stats_v2');
+      localStorage.removeItem('arcgate_sandbox_unlocks_v2');
       localStorage.removeItem('arcgate_live_stats_v2');
+      localStorage.removeItem('arcgate_live_stats_v3');
+      localStorage.removeItem('arcgate_sandbox_unlocks_v3');
     } catch (e) {}
   }, []);
 
@@ -108,6 +112,15 @@ export default function App() {
     }
   });
 
+  const [sandboxUnlockCounts, setSandboxUnlockCounts] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_SANDBOX_COUNTS_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
   const [sandboxCustomGates, setSandboxCustomGates] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_SANDBOX_GATES_KEY);
@@ -117,18 +130,19 @@ export default function App() {
     }
   });
 
-  const [sandboxStats, setSandboxStats] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_SANDBOX_STATS_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return { ...BASE_STATS };
-  });
-
   // LIVE MAINNET ISOLATED STATE
   const [liveUnlockedIds, setLiveUnlockedIds] = useState(() => {
     try {
       const saved = localStorage.getItem(STORAGE_LIVE_UNLOCKS_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  const [liveUnlockCounts, setLiveUnlockCounts] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_LIVE_COUNTS_KEY);
       return saved ? JSON.parse(saved) : {};
     } catch (e) {
       return {};
@@ -146,20 +160,36 @@ export default function App() {
 
   const [liveContractGates, setLiveContractGates] = useState([]);
 
-  const [liveStats, setLiveStats] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_LIVE_STATS_KEY);
-      if (saved) return JSON.parse(saved);
-    } catch (e) {}
-    return { ...BASE_STATS };
-  });
-
-  // Dynamically resolve gates and stats based on active environment
-  const currentGates = isDemoMode
+  // Dynamically resolve gates with real live/sandbox unlock counts
+  const rawGates = isDemoMode
     ? [...sandboxCustomGates, ...DEMO_GATES]
     : (liveContractGates.length > 0 ? liveContractGates : [...liveCustomGates, ...DEMO_GATES]);
 
-  const currentStats = isDemoMode ? sandboxStats : liveStats;
+  const currentGates = rawGates.map((gate) => {
+    const countsMap = isDemoMode ? sandboxUnlockCounts : liveUnlockCounts;
+    const additionalUnlocks = countsMap[gate.id] || 0;
+    const baseCount = gate.unlockCount || 0;
+    return {
+      ...gate,
+      unlockCount: baseCount + additionalUnlocks,
+    };
+  });
+
+  // Compute real protocol stats dynamically from currentGates (100% genuine data)
+  const currentStats = React.useMemo(() => {
+    const totalGates = currentGates.length.toString();
+    const totalUnlocks = currentGates.reduce((sum, g) => sum + (g.unlockCount || 0), 0);
+    const volumeUsdc = currentGates.reduce((sum, g) => {
+      const price = parseFloat(g.priceUsdcFormatted || '0');
+      return sum + (price * (g.unlockCount || 0));
+    }, 0).toFixed(2);
+
+    return {
+      volumeUsdc,
+      totalGates,
+      totalUnlocks: totalUnlocks.toString(),
+    };
+  }, [currentGates]);
 
   // Strict check if a gate is unlocked
   const isGateUnlocked = (gate) => {
@@ -183,20 +213,29 @@ export default function App() {
 
   const handleResetSandbox = () => {
     setSandboxUnlockedIds([]);
+    setSandboxUnlockCounts({});
     setSandboxCustomGates([]);
-    setSandboxStats({ ...BASE_STATS });
+    setPendingEarnings('0.00');
     try {
       localStorage.removeItem(STORAGE_SANDBOX_UNLOCKS_KEY);
+      localStorage.removeItem(STORAGE_SANDBOX_COUNTS_KEY);
       localStorage.removeItem(STORAGE_SANDBOX_GATES_KEY);
-      localStorage.removeItem(STORAGE_SANDBOX_STATS_KEY);
+      localStorage.removeItem(STORAGE_PENDING_EARNINGS_KEY);
     } catch (e) {}
-    showToast('Sandbox reset! All demo gates re-locked.', 'info');
+    showToast('Sandbox reset! All demo gates re-locked and all stats set to 0.', 'info');
   };
 
   // Phase 1, 2, 3 States
   const [selectedSingleGate, setSelectedSingleGate] = useState(null);
   const [receiptData, setReceiptData] = useState(null);
-  const [pendingEarnings, setPendingEarnings] = useState('0.35');
+  const [pendingEarnings, setPendingEarnings] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_PENDING_EARNINGS_KEY);
+      return saved || '0.00';
+    } catch (e) {
+      return '0.00';
+    }
+  });
   const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   // Total Unlocked Count for Library Badge
@@ -279,6 +318,9 @@ export default function App() {
       if (isDemoMode) {
         await new Promise((resolve) => setTimeout(resolve, 800));
         setPendingEarnings('0.00');
+        try {
+          localStorage.setItem(STORAGE_PENDING_EARNINGS_KEY, '0.00');
+        } catch (e) {}
         playUnlockChime();
         confetti({ particleCount: 80, spread: 70 });
         showToast('[Sandbox] Claimed escrow earnings to creator wallet!', 'success');
@@ -302,9 +344,15 @@ export default function App() {
         showToast(`Withdrawal broadcast: ${tx.hash.slice(0, 10)}...`, 'info');
         await tx.wait(1);
         setPendingEarnings('0.00');
+        try {
+          localStorage.setItem(STORAGE_PENDING_EARNINGS_KEY, '0.00');
+        } catch (e) {}
       } else {
         await new Promise((resolve) => setTimeout(resolve, 800));
         setPendingEarnings('0.00');
+        try {
+          localStorage.setItem(STORAGE_PENDING_EARNINGS_KEY, '0.00');
+        } catch (e) {}
       }
 
       playUnlockChime();
@@ -498,16 +546,6 @@ export default function App() {
         }));
         setLiveContractGates(formatted);
       }
-
-      const updatedStats = {
-        volumeUsdc: parseFloat(ethers.formatUnits(contractStats[3], 18)).toFixed(2),
-        totalGates: contractStats[0].toString(),
-        totalUnlocks: contractStats[1].toString(),
-      };
-      setLiveStats(updatedStats);
-      try {
-        localStorage.setItem(STORAGE_LIVE_STATS_KEY, JSON.stringify(updatedStats));
-      } catch (e) {}
     } catch (err) {
       console.warn('Contract data fetch fallback to demo:', err);
     }
@@ -534,18 +572,22 @@ export default function App() {
       await new Promise((resolve) => setTimeout(resolve, 600));
 
       const newSandboxUnlocked = Array.from(new Set([...sandboxUnlockedIds, gate.id]));
-      const newSandboxStats = {
-        ...sandboxStats,
-        totalUnlocks: (parseInt(sandboxStats.totalUnlocks || 0) + 1).toString(),
-        volumeUsdc: (parseFloat(sandboxStats.volumeUsdc || 0) + gatePriceNum).toFixed(2),
+      const newCounts = {
+        ...sandboxUnlockCounts,
+        [gate.id]: (sandboxUnlockCounts[gate.id] || 0) + 1,
       };
 
       setSandboxUnlockedIds(newSandboxUnlocked);
-      setSandboxStats(newSandboxStats);
+      setSandboxUnlockCounts(newCounts);
+
+      const addedEarnings = (gatePriceNum * 0.99).toFixed(2);
+      const newPending = (parseFloat(pendingEarnings || '0') + parseFloat(addedEarnings)).toFixed(2);
+      setPendingEarnings(newPending);
 
       try {
         localStorage.setItem(STORAGE_SANDBOX_UNLOCKS_KEY, JSON.stringify(newSandboxUnlocked));
-        localStorage.setItem(STORAGE_SANDBOX_STATS_KEY, JSON.stringify(newSandboxStats));
+        localStorage.setItem(STORAGE_SANDBOX_COUNTS_KEY, JSON.stringify(newCounts));
+        localStorage.setItem(STORAGE_PENDING_EARNINGS_KEY, newPending);
       } catch (e) {}
 
       dbService.recordUnlock(gate.id, '0xDemo...Arc', gate.priceUsdcFormatted, '0xSimulatedArcHash');
@@ -628,18 +670,22 @@ export default function App() {
         [userKey]: updatedAccountUnlocks,
       };
 
-      const newLiveStats = {
-        ...liveStats,
-        totalUnlocks: (parseInt(liveStats.totalUnlocks || 0) + 1).toString(),
-        volumeUsdc: (parseFloat(liveStats.volumeUsdc || 0) + gatePriceNum).toFixed(2),
+      const newLiveCounts = {
+        ...liveUnlockCounts,
+        [gate.id]: (liveUnlockCounts[gate.id] || 0) + 1,
       };
 
       setLiveUnlockedIds(newLiveUnlockedIds);
-      setLiveStats(newLiveStats);
+      setLiveUnlockCounts(newLiveCounts);
+
+      const addedEarnings = (gatePriceNum * 0.99).toFixed(2);
+      const newPending = (parseFloat(pendingEarnings || '0') + parseFloat(addedEarnings)).toFixed(2);
+      setPendingEarnings(newPending);
 
       try {
         localStorage.setItem(STORAGE_LIVE_UNLOCKS_KEY, JSON.stringify(newLiveUnlockedIds));
-        localStorage.setItem(STORAGE_LIVE_STATS_KEY, JSON.stringify(newLiveStats));
+        localStorage.setItem(STORAGE_LIVE_COUNTS_KEY, JSON.stringify(newLiveCounts));
+        localStorage.setItem(STORAGE_PENDING_EARNINGS_KEY, newPending);
       } catch (e) {}
 
       dbService.recordUnlock(gate.id, account, gate.priceUsdcFormatted, '0xArcLiveTxHash');
@@ -687,18 +733,11 @@ export default function App() {
         };
 
         const updatedSandboxGates = [localGate, ...sandboxCustomGates];
-        const updatedSandboxStats = {
-          ...sandboxStats,
-          totalGates: (parseInt(sandboxStats.totalGates || 0) + 1).toString(),
-        };
-
         setSandboxCustomGates(updatedSandboxGates);
-        setSandboxStats(updatedSandboxStats);
         setSandboxUnlockedIds((prev) => [...prev, newId]);
 
         try {
           localStorage.setItem(STORAGE_SANDBOX_GATES_KEY, JSON.stringify(updatedSandboxGates));
-          localStorage.setItem(STORAGE_SANDBOX_STATS_KEY, JSON.stringify(updatedSandboxStats));
         } catch (e) {}
 
         setIsCreateOpen(false);
@@ -744,17 +783,10 @@ export default function App() {
         };
 
         const updatedLiveGates = [localGate, ...liveCustomGates];
-        const updatedLiveStats = {
-          ...liveStats,
-          totalGates: (parseInt(liveStats.totalGates || 0) + 1).toString(),
-        };
-
         setLiveCustomGates(updatedLiveGates);
-        setLiveStats(updatedLiveStats);
 
         try {
           localStorage.setItem(STORAGE_LIVE_GATES_KEY, JSON.stringify(updatedLiveGates));
-          localStorage.setItem(STORAGE_LIVE_STATS_KEY, JSON.stringify(updatedLiveStats));
         } catch (e) {}
       }
 

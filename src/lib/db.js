@@ -122,12 +122,18 @@ export const dbService = {
    */
   getGateStats(gateId, defaultUnlockCount = 0, priceUsdc = 0.1) {
     const data = getStoredAnalytics();
-    const views = data.views[gateId] || Math.max(defaultUnlockCount * 4, 12);
-    const localEarnings = data.earnings[gateId] || (defaultUnlockCount * priceUsdc);
+    const views = data.views[gateId] !== undefined ? data.views[gateId] : defaultUnlockCount;
+    const localEarnings = data.earnings[gateId] !== undefined 
+      ? data.earnings[gateId] 
+      : (defaultUnlockCount * priceUsdc);
+    const conv = views > 0 
+      ? ((defaultUnlockCount / views) * 100).toFixed(1) 
+      : (defaultUnlockCount > 0 ? '100.0' : '0.0');
     return {
       views,
       totalEarnedUsdc: localEarnings.toFixed(2),
-      conversionRate: views > 0 ? ((defaultUnlockCount / views) * 100).toFixed(1) : '0.0',
+      conversion: conv,
+      conversionRate: conv,
     };
   },
 

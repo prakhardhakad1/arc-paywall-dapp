@@ -42,7 +42,7 @@ export const DEMO_GATES = [
     description: 'Exclusive research notes on Arc sub-second finality, 18-decimal native gas mechanics, and institutional validator topology.',
     priceUsdcWei: '100000000000000000', // 0.10 USDC
     priceUsdcFormatted: '0.10',
-    unlockCount: 28,
+    unlockCount: 0,
     createdAt: Math.floor(Date.now() / 1000) - 86400 * 2,
     active: true,
     isUnlocked: false,
@@ -55,7 +55,7 @@ export const DEMO_GATES = [
     description: 'Instant invite link to the private 2026 algorithmic DeFi signals channel. Micro-monetized with zero friction.',
     priceUsdcWei: '250000000000000000', // 0.25 USDC
     priceUsdcFormatted: '0.25',
-    unlockCount: 64,
+    unlockCount: 0,
     createdAt: Math.floor(Date.now() / 1000) - 86400 * 4,
     active: true,
     isUnlocked: false,
@@ -68,7 +68,7 @@ export const DEMO_GATES = [
     description: 'Production-ready codebase template with preconfigured MetaMask auto-switch, ArcScan verification scripts, and Vercel CI/CD.',
     priceUsdcWei: '500000000000000000', // 0.50 USDC
     priceUsdcFormatted: '0.50',
-    unlockCount: 42,
+    unlockCount: 0,
     createdAt: Math.floor(Date.now() / 1000) - 86400 * 6,
     active: true,
     isUnlocked: false,

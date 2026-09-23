@@ -20,6 +20,7 @@ import {
   ArrowUpRight,
 } from 'lucide-react';
 import { getContentType } from '../lib/contentDetector';
+import { dbService } from '../lib/db';
 
 export default function CreatorStudio({
   gates,
@@ -52,6 +53,15 @@ export default function CreatorStudio({
   const totalSales = myGates.reduce((sum, g) => sum + (g.unlockCount || 0), 0);
   const activeGatesCount = myGates.filter((g) => g.active !== false).length;
   const pausedGatesCount = myGates.filter((g) => g.active === false).length;
+
+  const totalViews = myGates.reduce((sum, g) => {
+    const stats = dbService.getGateStats(g.id, g.unlockCount || 0, parseFloat(g.priceUsdcFormatted || '0'));
+    return sum + (stats.views || 0);
+  }, 0);
+
+  const avgConversion = totalViews > 0
+    ? ((totalSales / totalViews) * 100).toFixed(1)
+    : (totalSales > 0 ? '100.0' : '0.0');
 
   // Milestone Progress (e.g. goal of 50 USDC)
   const milestoneGoal = 50.0;
@@ -171,7 +181,7 @@ export default function CreatorStudio({
           </div>
           <div className="mt-2 text-[11px] text-slate-400">
             <span>Avg. conversion: </span>
-            <span className="text-emerald-400 font-semibold">25.0%</span>
+            <span className="text-emerald-400 font-semibold">{avgConversion}%</span>
           </div>
         </div>
 

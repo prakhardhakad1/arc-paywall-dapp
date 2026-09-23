@@ -651,7 +651,7 @@ export default function App() {
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
         const tx = await signer.sendTransaction({
-          to: gate.creator,
+          to: ethers.getAddress(gate.creator.toLowerCase()),
           value: BigInt(gate.priceUsdcWei),
         });
         broadcastTx = tx;
@@ -842,7 +842,7 @@ export default function App() {
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
         const tx = await signer.sendTransaction({
-          to: recipient,
+          to: ethers.getAddress(recipient.toLowerCase()),
           value: tipWei,
         });
         showToast(`Direct USDC Tip sent: ${tx.hash.slice(0, 10)}...`, 'info');

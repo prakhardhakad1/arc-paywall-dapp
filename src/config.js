@@ -42,7 +42,7 @@ export const ARC_PAYWALL_ABI = [
 export const DEMO_GATES = [
   {
     id: 1,
-    creator: '0x32A4B8F3C7E1d2A3bB0A4F8a18B0971b3e1B86C4',
+    creator: '0x32A4B8F3c7e1D2A3Bb0A4F8A18B0971b3E1B86C4',
     title: 'Circle Arc Alpha: Developer Secrets & Architecture Blueprint',
     description: 'Exclusive research notes on Arc sub-second finality, 18-decimal native gas mechanics, and institutional validator topology.',
     priceUsdcWei: '100000000000000000', // 0.10 USDC
@@ -55,7 +55,7 @@ export const DEMO_GATES = [
   },
   {
     id: 2,
-    creator: '0x8b3192f5eE8b2756882F38436FDE015b6dEb4827',
+    creator: '0x8B3192f5ee8B2756882F38436fDE015B6DEB4827',
     title: 'Private Telegram Alpha Channel: Crypto Quant Signals',
     description: 'Instant invite link to the private 2026 algorithmic DeFi signals channel. Micro-monetized with zero friction.',
     priceUsdcWei: '250000000000000000', // 0.25 USDC
@@ -68,7 +68,7 @@ export const DEMO_GATES = [
   },
   {
     id: 3,
-    creator: '0x5D22b647F8B67C9242944b1c753F8FfB4bFa19a2',
+    creator: '0x5D22B647F8B67C9242944b1c753f8fFb4bfa19a2',
     title: 'Full-Stack Web3 Starter Kit (React + Solidity + Arc RPC)',
     description: 'Production-ready codebase template with preconfigured MetaMask auto-switch, ArcScan verification scripts, and Vercel CI/CD.',
     priceUsdcWei: '500000000000000000', // 0.50 USDC

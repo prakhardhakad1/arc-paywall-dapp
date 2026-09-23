@@ -6,7 +6,19 @@ const ARC_RPC_URL = 'https://rpc.mainnet.arc.io';
 const CHAIN_ID = 5042;
 
 async function main() {
-  const privateKey = process.env.PRIVATE_KEY || process.argv[2];
+  let envKey = process.env.PRIVATE_KEY;
+  if (!envKey) {
+    const envPath = path.resolve('.env');
+    if (fs.existsSync(envPath)) {
+      const envText = fs.readFileSync(envPath, 'utf8');
+      const match = envText.match(/^\s*PRIVATE_KEY\s*=\s*(["']?)(.*?)\1\s*$/m);
+      if (match && match[2]) {
+        envKey = match[2].trim();
+      }
+    }
+  }
+
+  const privateKey = envKey || process.argv[2];
 
   if (!privateKey) {
     console.error('❌ Error: No private key provided.');

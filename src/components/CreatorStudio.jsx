@@ -68,7 +68,7 @@ export default function CreatorStudio({
   const progressPercent = Math.min(100, Math.round((totalVolume / milestoneGoal) * 100));
 
   const handleCopyShareLink = (gateId) => {
-    const url = `${window.location.origin}?gate=${gateId}`;
+    const url = `${window.location.origin}/gate/${gateId}`;
     navigator.clipboard.writeText(url);
     setCopiedGateId(gateId);
     setTimeout(() => setCopiedGateId(null), 2000);

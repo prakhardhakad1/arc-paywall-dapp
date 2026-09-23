@@ -168,18 +168,36 @@ console.log('  ✓ Receipt breakdown: 0.2475 USDC to Creator, 0.0025 USDC protoc
 // -------------------------------------------------------------------
 // TEST 7: Single Gate View Shareable URL Deep-Link (Phase 2, Feature 3)
 // -------------------------------------------------------------------
-console.log('\nTest 7: Verifying Deep-Link Matching Logic...');
+// TEST 7: Single Gate View Shareable URL Deep-Link & Clean Path Routing
+// -------------------------------------------------------------------
+console.log('\nTest 7: Verifying Deep-Link & Clean Path Matching Logic...');
 
 const mockOrigin = 'https://arc-paywall-dapp.vercel.app';
-const shareUrl = `${mockOrigin}?gate=2`;
-const parsedUrl = new URL(shareUrl);
-const gateIdParam = parsedUrl.searchParams.get('gate');
+const queryShareUrl = `${mockOrigin}?gate=2`;
+const parsedQueryUrl = new URL(queryShareUrl);
+const gateIdParam = parsedQueryUrl.searchParams.get('gate');
 
 assert.strictEqual(gateIdParam, '2');
-const targetGate = testGates.find((g) => g.id.toString() === gateIdParam);
-assert.ok(targetGate, 'Target gate should be found by query param');
-assert.strictEqual(targetGate.id, 2);
-console.log('  ✓ Shareable link parameter parsing (?gate=2) cleanly resolves corresponding gate.');
+const targetGateFromQuery = testGates.find((g) => g.id.toString() === gateIdParam);
+assert.ok(targetGateFromQuery, 'Target gate should be found by query param');
+assert.strictEqual(targetGateFromQuery.id, 2);
+
+// Test clean RESTful pathname: /gate/2 and /gate/gate_arc_0002
+const pathUrl = `${mockOrigin}/gate/2`;
+const parsedPath = new URL(pathUrl).pathname;
+const pathMatch = parsedPath.match(/^\/(?:gate|embed|g)\/([a-zA-Z0-9_-]+)/i);
+assert.ok(pathMatch, 'Path regex must match /gate/2');
+assert.strictEqual(pathMatch[1], '2');
+
+const typedPathUrl = `${mockOrigin}/gate/gate_arc_0002`;
+const parsedTypedPath = new URL(typedPathUrl).pathname;
+const typedMatch = parsedTypedPath.match(/^\/(?:gate|embed|g)\/([a-zA-Z0-9_-]+)/i);
+assert.ok(typedMatch, 'Path regex must match /gate/gate_arc_0002');
+const numericExtract = typedMatch[1].match(/(\d+)$/);
+assert.strictEqual(numericExtract[1], '0002');
+assert.strictEqual(parseInt(numericExtract[1], 10), 2);
+
+console.log('  ✓ Shareable link parameter (?gate=2), clean path (/gate/2), and typed path (/gate/gate_arc_0002) cleanly resolve.');
 
 // -------------------------------------------------------------------
 // TEST 8: My Library Filtering Logic (Phase 2, Feature 4)

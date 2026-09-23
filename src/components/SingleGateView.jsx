@@ -96,7 +96,7 @@ export default function SingleGateView({
   };
 
   const handleCopyShareLink = async () => {
-    const url = `${window.location.origin}?gate=${gate.id}`;
+    const url = `${window.location.origin}/gate/${gate.id}`;
     if (navigator?.clipboard?.writeText) {
       try {
         await navigator.clipboard.writeText(url);
@@ -128,7 +128,8 @@ export default function SingleGateView({
       <div className="flex items-center justify-between">
         <button
           onClick={onBack}
-          className="inline-flex items-center space-x-2 text-xs font-semibold text-slate-400 hover:text-white transition-all cursor-pointer py-1.5 px-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800"
+          aria-label="Back to explore all gates"
+          className="inline-flex items-center space-x-2 text-xs font-semibold text-slate-300 hover:text-white transition-all cursor-pointer py-1.5 px-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Back to Explore</span>
@@ -137,7 +138,8 @@ export default function SingleGateView({
         <div className="flex items-center space-x-2">
           <button
             onClick={handleCopyShareLink}
-            className="inline-flex items-center space-x-1.5 text-xs font-semibold text-slate-300 hover:text-white py-1.5 px-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 transition-all cursor-pointer"
+            aria-label="Copy shareable link for this paywalled gate"
+            className="inline-flex items-center space-x-1.5 text-xs font-semibold text-slate-200 hover:text-white py-1.5 px-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 transition-all cursor-pointer"
             title="Copy shareable link"
           >
             {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -146,6 +148,7 @@ export default function SingleGateView({
 
           <button
             onClick={() => onOpenEmbedModal(gate)}
+            aria-label="Get 1-line HTML embed snippet"
             className="inline-flex items-center space-x-1.5 text-xs font-semibold text-cyan-400 hover:text-cyan-300 py-1.5 px-3 rounded-xl bg-slate-900/60 hover:bg-slate-800 border border-slate-800 transition-all cursor-pointer"
             title="Get 1-line HTML embed snippet"
           >

@@ -249,26 +249,29 @@ export default function App() {
   // Total Unlocked Count for Library Badge
   const unlockedCount = currentGates.filter((g) => isGateUnlocked(g)).length;
 
-  // Deep-Link & URL Routing Effect (?gate=1, ?unlock=1, /gate/1, /embed/1, #gate-1)
+  // Deep-Link & Clean URL Routing Effect (/gate/:id, /g/:id, /embed/:id, ?gate=:id, #gate-:id)
   useEffect(() => {
     const handleUrlRouting = () => {
       try {
+        const pathname = window.location.pathname;
+        const pathMatch = pathname.match(/^\/(?:gate|embed|g)\/([a-zA-Z0-9_-]+)/i);
         const params = new URLSearchParams(window.location.search);
-        const queryGate = params.get('gate') || params.get('unlock');
-        const pathMatch = window.location.pathname.match(/^\/(?:gate|embed)\/(\d+)/i);
-        const targetGateId = queryGate || (pathMatch ? pathMatch[1] : null);
+        const queryGate = params.get('gate') || params.get('unlock') || params.get('id');
+        const hashMatch = window.location.hash.match(/gate-?([a-zA-Z0-9_-]+)/i);
 
-        if (targetGateId) {
-          const found = currentGates.find((g) => g.id.toString() === targetGateId.toString());
-          if (found) {
-            setSelectedSingleGate(found);
-            setActiveTab('gate-view');
-            return;
-          }
-        }
-        const hashMatch = window.location.hash.match(/gate-(\d+)/);
-        if (hashMatch && hashMatch[1]) {
-          const found = currentGates.find((g) => g.id.toString() === hashMatch[1]);
+        const rawTargetId = (pathMatch ? pathMatch[1] : null) || queryGate || (hashMatch ? hashMatch[1] : null);
+
+        if (rawTargetId) {
+          const cleanNumericMatch = rawTargetId.match(/(\d+)$/);
+          const numericId = cleanNumericMatch ? cleanNumericMatch[1] : rawTargetId;
+
+          const found = currentGates.find(
+            (g) =>
+              g.id.toString() === rawTargetId.toString() ||
+              g.id.toString() === numericId.toString() ||
+              (g.typedId && g.typedId.toLowerCase() === rawTargetId.toLowerCase())
+          );
+
           if (found) {
             setSelectedSingleGate(found);
             setActiveTab('gate-view');
@@ -287,7 +290,7 @@ export default function App() {
     setSelectedSingleGate(gate);
     setActiveTab('gate-view');
     try {
-      window.history.pushState(null, '', `?gate=${gate.id}`);
+      window.history.pushState(null, '', `/gate/${gate.id}`);
     } catch (e) {}
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -296,7 +299,7 @@ export default function App() {
     setActiveTab('explore');
     setSelectedSingleGate(null);
     try {
-      window.history.pushState(null, '', window.location.pathname);
+      window.history.pushState(null, '', '/');
     } catch (e) {}
   };
 

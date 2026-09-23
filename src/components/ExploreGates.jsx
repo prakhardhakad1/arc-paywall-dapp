@@ -129,10 +129,11 @@ export default function ExploreGates({
           <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
+            aria-label="Search paywalled gates or creator addresses"
             placeholder="Search gates or creators..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-900/80 border border-slate-700/80 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-all"
+            className="w-full bg-slate-900/80 border border-slate-700/80 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-500 transition-all"
           />
         </div>
       </div>
@@ -332,6 +333,7 @@ export default function ExploreGates({
                   <button
                     onClick={() => onOpenEmbedModal(gate)}
                     title="Get 1-line HTML / React embed snippet"
+                    aria-label={`Get embed widget code for ${gate.title}`}
                     className="col-span-1 inline-flex items-center justify-center p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700/80 transition-all hover:scale-105 active:scale-95 cursor-pointer"
                   >
                     <Code2 className="w-4 h-4" />
@@ -341,6 +343,7 @@ export default function ExploreGates({
                   <button
                     onClick={() => onTipCreator(gate.creator)}
                     title="Send a direct micro-tip to creator"
+                    aria-label={`Send direct micro-tip to creator ${gate.creator}`}
                     className="col-span-1 inline-flex items-center justify-center p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-pink-400 border border-slate-700/80 transition-all hover:scale-105 active:scale-95 cursor-pointer"
                   >
                     <Heart className="w-4 h-4 fill-pink-500/20" />

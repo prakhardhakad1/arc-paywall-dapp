@@ -872,7 +872,56 @@ export default function App() {
       />
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 flex-1 w-full">
+        {/* Responsive Sub-Navigation Bar for Mobile & Tablet (< lg screens) */}
+        <div className="lg:hidden flex items-center justify-between p-1 bg-slate-900/90 rounded-2xl border border-slate-800 mb-6 overflow-x-auto shadow-lg backdrop-blur-md">
+          <button
+            onClick={() => setActiveTab('explore')}
+            className={`flex-1 py-2 px-3 text-xs font-semibold rounded-xl text-center transition-all whitespace-nowrap cursor-pointer ${
+              activeTab === 'explore'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Explore Gates
+          </button>
+          <button
+            onClick={() => setActiveTab('library')}
+            className={`flex-1 py-2 px-3 text-xs font-semibold rounded-xl text-center transition-all flex items-center justify-center space-x-1.5 whitespace-nowrap cursor-pointer ${
+              activeTab === 'library'
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <span>My Library</span>
+            {unlockedCount > 0 && (
+              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/40">
+                {unlockedCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setActiveTab('studio')}
+            className={`flex-1 py-2 px-3 text-xs font-semibold rounded-xl text-center transition-all whitespace-nowrap cursor-pointer ${
+              activeTab === 'studio'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Creator Studio
+          </button>
+          <button
+            onClick={() => setActiveTab('tip')}
+            className={`flex-1 py-2 px-3 text-xs font-semibold rounded-xl text-center transition-all whitespace-nowrap cursor-pointer ${
+              activeTab === 'tip'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Instant Tip
+          </button>
+        </div>
+
         {/* Tab Routing */}
         {activeTab === 'explore' && (
           <>

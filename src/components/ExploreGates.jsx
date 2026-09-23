@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { dbService } from '../lib/db';
 import { getContentType } from '../lib/contentDetector';
+import { formatGateId, formatCreatorHandle } from '../lib/typedIds';
 
 const CATEGORIES = [
   { id: 'all', label: 'All Content' },
@@ -201,7 +202,8 @@ export default function ExploreGates({
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center space-x-1.5 text-[11px] text-slate-400">
                     <User className="w-3.5 h-3.5 text-slate-500" />
-                    <span className="font-mono">{truncateAddress(gate.creator)}</span>
+                    <span className="font-mono text-cyan-400 font-semibold">{formatCreatorHandle(gate.creator)}</span>
+                    <span className="font-mono text-slate-500 text-[10px] hidden sm:inline">({truncateAddress(gate.creator)})</span>
                     {isCreator && (
                       <span className="text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800/60 px-1.5 py-0.2 rounded font-semibold">
                         You
@@ -233,11 +235,14 @@ export default function ExploreGates({
                   </div>
                 </div>
 
-                {/* Rich Content Badge */}
-                <div className="mb-2">
+                {/* Rich Content Badge & Typed Gate ID */}
+                <div className="mb-2 flex items-center space-x-2">
                   <span className={`inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${badge.bg} ${badge.text} border ${badge.border}`}>
                     <BadgeIcon className="w-3 h-3" />
                     <span>{badge.label}</span>
+                  </span>
+                  <span className="font-mono text-[10px] text-slate-400 bg-slate-900/90 px-2 py-0.5 rounded-md border border-slate-800">
+                    {formatGateId(gate.id, isDemoMode)}
                   </span>
                 </div>
 

@@ -528,7 +528,6 @@ export default function App() {
       );
 
       const recentGates = await contract.getRecentGates(0, 20);
-      const contractStats = await contract.getProtocolStats();
 
       if (recentGates && recentGates.length > 0) {
         const formatted = recentGates.map((g) => ({

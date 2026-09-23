@@ -54,8 +54,8 @@ export function getContentType(gate) {
     };
   }
 
-  // Dataset / Signals
-  if (combined.includes('dataset') || combined.includes('signals') || combined.includes('csv') || combined.includes('metrics') || combined.includes('alpha signals')) {
+  // Dataset / Signals / Data feeds
+  if (combined.includes('dataset') || combined.includes('data') || combined.includes('parquet') || combined.includes('database') || combined.includes('signals') || combined.includes('csv') || combined.includes('metrics') || combined.includes('alpha signals')) {
     return {
       type: 'dataset',
       label: 'Alpha Dataset',

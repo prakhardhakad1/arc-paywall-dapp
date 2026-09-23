@@ -24,6 +24,9 @@ export const ARC_PAYWALL_ABI = [
   'function getGate(uint256 gateId) external view returns (tuple(uint256 id, address creator, string title, string description, uint256 priceUsdcWei, uint256 unlockCount, uint256 createdAt, bool active, bool isUnlocked, string secretPayload))',
   'function getRecentGates(uint256 offset, uint256 limit) external view returns (tuple(uint256 id, address creator, string title, string description, uint256 priceUsdcWei, uint256 unlockCount, uint256 createdAt, bool active, bool isUnlocked, string secretPayload)[])',
   'function getProtocolStats() external view returns (uint256 totalGates, uint256 totalUnlocks, uint256 totalTips, uint256 totalVolume)',
+  'function withdrawCreatorEarnings() external',
+  'function pendingBalances(address creator) external view returns (uint256)',
+  'function withdrawProtocolFees() external',
   'function gateCount() external view returns (uint256)',
   'function totalVolumeUsdc() external view returns (uint256)',
   'function totalUnlocksCount() external view returns (uint256)',
@@ -31,6 +34,8 @@ export const ARC_PAYWALL_ABI = [
   'event GateCreated(uint256 indexed id, address indexed creator, string title, uint256 priceUsdcWei, uint256 timestamp)',
   'event GateUnlocked(uint256 indexed id, address indexed buyer, address indexed creator, uint256 amountPaid, uint256 timestamp)',
   'event CreatorTipped(address indexed creator, address indexed tipper, uint256 amount, string message, uint256 timestamp)',
+  'event CreatorPayoutWithdrawn(address indexed creator, uint256 amount)',
+  'event ProtocolFeesWithdrawn(address indexed owner, uint256 amount)',
 ];
 
 // Curated Showcase Demo Gates for instant demo interaction

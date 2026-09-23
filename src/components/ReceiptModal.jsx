@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import { CheckCircle2, ExternalLink, Copy, Check, X, Shield, ArrowUpRight, Coins } from 'lucide-react';
+import { CheckCircle2, ExternalLink, Copy, Check, X, Shield, ArrowUpRight, Coins, FileText, KeyRound } from 'lucide-react';
 import { ARC_MAINNET } from '../config';
+import { formatReceiptId, formatLicenseId } from '../lib/typedIds';
 
 export default function ReceiptModal({ isOpen, onClose, receipt, onAccessContent }) {
   const [copied, setCopied] = useState(false);
+  const [copiedLicense, setCopiedLicense] = useState(false);
 
   if (!isOpen || !receipt) return null;
 
@@ -14,6 +16,9 @@ export default function ReceiptModal({ isOpen, onClose, receipt, onAccessContent
       setTimeout(() => setCopied(false), 2000);
     }
   };
+
+  const receiptId = formatReceiptId(receipt.txHash);
+  const licenseId = formatLicenseId(receipt.gateId, receipt.buyer);
 
   const amountNum = parseFloat(receipt.amountUsdc || '0.10');
   const creatorAmount = (amountNum * 0.99).toFixed(4);
@@ -85,6 +90,22 @@ export default function ReceiptModal({ isOpen, onClose, receipt, onAccessContent
 
         {/* Telemetry Details */}
         <div className="space-y-2 mb-6 text-xs text-slate-300">
+          <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/70">
+            <span className="text-slate-400 flex items-center space-x-1.5">
+              <FileText className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Receipt ID</span>
+            </span>
+            <span className="font-mono text-cyan-300 font-semibold text-[11px]">{receiptId}</span>
+          </div>
+
+          <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/70">
+            <span className="text-slate-400 flex items-center space-x-1.5">
+              <KeyRound className="w-3.5 h-3.5 text-emerald-400" />
+              <span>License Token</span>
+            </span>
+            <span className="font-mono text-emerald-300 font-semibold text-[11px]">{licenseId}</span>
+          </div>
+
           <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/70">
             <span className="text-slate-400 flex items-center space-x-1.5">
               <Shield className="w-3.5 h-3.5 text-cyan-400" />

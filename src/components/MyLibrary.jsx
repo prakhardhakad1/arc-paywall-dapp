@@ -12,6 +12,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { getContentType } from '../lib/contentDetector';
+import { formatLicenseId, formatGateId, formatCreatorHandle } from '../lib/typedIds';
 
 export default function MyLibrary({
   gates,
@@ -98,10 +99,16 @@ export default function MyLibrary({
                 <div>
                   {/* Top Bar */}
                   <div className="flex items-center justify-between mb-4">
-                    <span className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold ${badge.bg} ${badge.text} border ${badge.border}`}>
-                      <BadgeIcon className="w-3 h-3" />
-                      <span>{badge.label}</span>
-                    </span>
+                    <div className="flex items-center space-x-2">
+                      <span className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold ${badge.bg} ${badge.text} border ${badge.border}`}>
+                        <BadgeIcon className="w-3 h-3" />
+                        <span>{badge.label}</span>
+                      </span>
+
+                      <span className="font-mono text-[10px] text-slate-400 bg-slate-900/80 px-2 py-0.5 rounded-md border border-slate-800">
+                        {formatGateId(gate.id, isDemoMode)}
+                      </span>
+                    </div>
 
                     <span className="inline-flex items-center space-x-1 text-[11px] font-semibold text-emerald-400 bg-emerald-950/80 border border-emerald-500/30 px-2 py-0.5 rounded-full">
                       <ShieldCheck className="w-3 h-3 text-emerald-400" />
@@ -117,16 +124,22 @@ export default function MyLibrary({
                     {gate.description}
                   </p>
 
-                  {/* Metadata pill */}
-                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 text-[11px] text-slate-400 mb-5">
-                    <span className="flex items-center space-x-1 font-mono">
-                      <User className="w-3 h-3 text-slate-500" />
-                      <span>{truncateAddress(gate.creator)}</span>
-                    </span>
-                    <span className="flex items-center space-x-1">
-                      <Clock className="w-3 h-3 text-slate-500" />
-                      <span>{formatDate(gate.createdAt)}</span>
-                    </span>
+                  {/* License Token Strip */}
+                  <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 text-[11px] text-slate-400 mb-5 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] uppercase font-semibold text-slate-500">License ID</span>
+                      <span className="font-mono text-[11px] text-emerald-300 font-semibold">{formatLicenseId(gate.id, account)}</span>
+                    </div>
+                    <div className="flex items-center justify-between pt-1 border-t border-slate-900">
+                      <span className="flex items-center space-x-1 font-mono text-[11px]">
+                        <User className="w-3 h-3 text-slate-500" />
+                        <span className="text-cyan-400">{formatCreatorHandle(gate.creator)}</span>
+                      </span>
+                      <span className="flex items-center space-x-1 text-[10px] text-slate-500">
+                        <Clock className="w-3 h-3 text-slate-500" />
+                        <span>{formatDate(gate.createdAt)}</span>
+                      </span>
+                    </div>
                   </div>
                 </div>
 

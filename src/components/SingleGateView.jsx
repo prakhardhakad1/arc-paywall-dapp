@@ -17,6 +17,7 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { getContentType } from '../lib/contentDetector';
+import { formatGateId, formatCreatorHandle } from '../lib/typedIds';
 
 export default function SingleGateView({
   gate,
@@ -130,6 +131,10 @@ export default function SingleGateView({
               <span>{badge.label}</span>
             </span>
 
+            <span className="font-mono text-xs text-slate-400 bg-slate-900/80 border border-slate-800 px-2.5 py-1 rounded-full">
+              {formatGateId(gate.id, isDemoMode)}
+            </span>
+
             <span className="inline-flex items-center space-x-1 text-xs font-semibold text-cyan-300 bg-cyan-950/60 border border-cyan-500/30 px-2.5 py-1 rounded-full">
               <Zap className="w-3 h-3 text-cyan-400" />
               <span>Arc Mainnet</span>
@@ -158,8 +163,8 @@ export default function SingleGateView({
         <div className="flex flex-wrap items-center gap-4 py-3 px-4 rounded-2xl bg-slate-950/60 border border-slate-800/80 text-xs text-slate-400 mb-6">
           <div className="flex items-center space-x-1.5">
             <User className="w-4 h-4 text-slate-500" />
-            <span className="text-slate-500">Creator:</span>
-            <span className="font-mono font-medium text-slate-300">{truncateAddress(gate.creator)}</span>
+            <span className="font-mono text-cyan-400 font-semibold">{formatCreatorHandle(gate.creator)}</span>
+            <span className="font-mono text-slate-500 text-[11px] hidden sm:inline">({truncateAddress(gate.creator)})</span>
           </div>
           <div className="flex items-center space-x-1.5">
             <Clock className="w-4 h-4 text-slate-500" />

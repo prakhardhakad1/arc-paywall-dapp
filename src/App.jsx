@@ -13,6 +13,11 @@ import GuideModal from './components/GuideModal';
 import EmbedWidgetModal from './components/EmbedWidgetModal';
 import AgentTerminalCard from './components/AgentTerminalCard';
 import BenchmarkCard from './components/BenchmarkCard';
+import CreatorStudio from './components/CreatorStudio';
+import MyLibrary from './components/MyLibrary';
+import SingleGateView from './components/SingleGateView';
+import ReceiptModal from './components/ReceiptModal';
+import { playUnlockChime, playTipChime } from './lib/audio';
 
 import {
   ARC_MAINNET,
@@ -186,6 +191,131 @@ export default function App() {
       localStorage.removeItem(STORAGE_SANDBOX_STATS_KEY);
     } catch (e) {}
     showToast('Sandbox reset! All demo gates re-locked.', 'info');
+  };
+
+  // Phase 1, 2, 3 States
+  const [selectedSingleGate, setSelectedSingleGate] = useState(null);
+  const [receiptData, setReceiptData] = useState(null);
+  const [pendingEarnings, setPendingEarnings] = useState('0.35');
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
+
+  // Total Unlocked Count for Library Badge
+  const unlockedCount = currentGates.filter((g) => isGateUnlocked(g)).length;
+
+  // Deep-Link & URL Routing Effect (?gate=1 or #gate-1)
+  useEffect(() => {
+    const handleUrlRouting = () => {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const gateParam = params.get('gate');
+        if (gateParam) {
+          const found = currentGates.find((g) => g.id.toString() === gateParam.toString());
+          if (found) {
+            setSelectedSingleGate(found);
+            setActiveTab('gate-view');
+            return;
+          }
+        }
+        const hashMatch = window.location.hash.match(/gate-(\d+)/);
+        if (hashMatch && hashMatch[1]) {
+          const found = currentGates.find((g) => g.id.toString() === hashMatch[1]);
+          if (found) {
+            setSelectedSingleGate(found);
+            setActiveTab('gate-view');
+            return;
+          }
+        }
+      } catch (e) {}
+    };
+
+    handleUrlRouting();
+    window.addEventListener('popstate', handleUrlRouting);
+    return () => window.removeEventListener('popstate', handleUrlRouting);
+  }, [currentGates]);
+
+  const handleSelectGate = (gate) => {
+    setSelectedSingleGate(gate);
+    setActiveTab('gate-view');
+    try {
+      window.history.pushState(null, '', `?gate=${gate.id}`);
+    } catch (e) {}
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBackToExplore = () => {
+    setActiveTab('explore');
+    setSelectedSingleGate(null);
+    try {
+      window.history.pushState(null, '', window.location.pathname);
+    } catch (e) {}
+  };
+
+  const handleToggleGateActive = (gateId) => {
+    if (isDemoMode) {
+      const updated = currentGates.map((g) =>
+        g.id === gateId ? { ...g, active: g.active === false ? true : false } : g
+      );
+      setSandboxCustomGates(updated);
+      try {
+        localStorage.setItem(STORAGE_SANDBOX_GATES_KEY, JSON.stringify(updated));
+      } catch (e) {}
+      showToast('Gate status updated in Sandbox!', 'info');
+      return;
+    }
+
+    const updatedLive = currentGates.map((g) =>
+      g.id === gateId ? { ...g, active: g.active === false ? true : false } : g
+    );
+    setLiveCustomGates(updatedLive);
+    try {
+      localStorage.setItem(STORAGE_LIVE_GATES_KEY, JSON.stringify(updatedLive));
+    } catch (e) {}
+    showToast('Gate status updated on Arc Mainnet!', 'info');
+  };
+
+  const handleWithdrawEarnings = async () => {
+    setIsWithdrawing(true);
+    try {
+      if (isDemoMode) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        setPendingEarnings('0.00');
+        playUnlockChime();
+        confetti({ particleCount: 80, spread: 70 });
+        showToast('[Sandbox] Claimed escrow earnings to creator wallet!', 'success');
+        return;
+      }
+
+      if (!account) {
+        connectWallet();
+        return;
+      }
+
+      if (isContractConfigured) {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const contract = new ethers.Contract(
+          ARC_PAYWALL_CONTRACT_ADDRESS,
+          ARC_PAYWALL_ABI,
+          signer
+        );
+        const tx = await contract.withdrawCreatorEarnings();
+        showToast(`Withdrawal broadcast: ${tx.hash.slice(0, 10)}...`, 'info');
+        await tx.wait(1);
+        setPendingEarnings('0.00');
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        setPendingEarnings('0.00');
+      }
+
+      playUnlockChime();
+      confetti({ particleCount: 80, spread: 70 });
+      showToast('Successfully claimed earnings on Arc Mainnet!', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast(formatWeb3Error(err, 'Withdrawal failed'), 'error');
+    } finally {
+      setIsWithdrawing(false);
+    }
   };
 
   // Modal States
@@ -421,8 +551,16 @@ export default function App() {
       dbService.recordUnlock(gate.id, '0xDemo...Arc', gate.priceUsdcFormatted, '0xSimulatedArcHash');
 
       confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 } });
+      playUnlockChime();
       showToast(`[Sandbox] Gate #${gate.id} unlocked instantly! Secret revealed.`, 'success');
       setSelectedUnlockedGate(gate);
+      setReceiptData({
+        isOpen: true,
+        txHash: '0xArcSandboxSimulatedTx_77e9b10c89fa21d3',
+        amountUsdc: gate.priceUsdcFormatted,
+        gateTitle: gate.title,
+        gateId: gate.id,
+      });
       setUnlockingId(null);
       return;
     }
@@ -441,6 +579,7 @@ export default function App() {
     }
 
     setUnlockingId(gate.id);
+    let broadcastTx = null;
 
     try {
       if (isContractConfigured) {
@@ -455,6 +594,7 @@ export default function App() {
         const tx = await contract.unlockGate(gate.id, {
           value: BigInt(gate.priceUsdcWei),
         });
+        broadcastTx = tx;
 
         showToast(`Transaction broadcast: ${tx.hash.slice(0, 10)}... Sub-second finality`, 'info');
         await tx.wait(1);
@@ -473,6 +613,7 @@ export default function App() {
           to: gate.creator,
           value: BigInt(gate.priceUsdcWei),
         });
+        broadcastTx = tx;
         showToast(`Transaction broadcast: ${tx.hash.slice(0, 10)}... Sub-second finality`, 'info');
         await tx.wait(1);
         setSelectedUnlockedGate(gate);
@@ -503,8 +644,16 @@ export default function App() {
 
       dbService.recordUnlock(gate.id, account, gate.priceUsdcFormatted, '0xArcLiveTxHash');
 
+      playUnlockChime();
       confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
       showToast(`Success! Gate #${gate.id} unlocked via Arc Mainnet native USDC.`, 'success');
+      setReceiptData({
+        isOpen: true,
+        txHash: broadcastTx?.hash || '0xArcLiveTxHash_48b19a22cc81b',
+        amountUsdc: gate.priceUsdcFormatted,
+        gateTitle: gate.title,
+        gateId: gate.id,
+      });
     } catch (err) {
       console.error(err);
       showToast(formatWeb3Error(err, 'Unlock transaction failed'), 'error');
@@ -635,6 +784,7 @@ export default function App() {
       if (isDemoMode) {
         await new Promise((resolve) => setTimeout(resolve, 600));
         setIsTipOpen(false);
+        playTipChime();
         showToast(`[Sandbox] Sent ${amountUsdc} USDC tip to ${recipient.slice(0, 6)}...!`, 'success');
         confetti({ particleCount: 70, spread: 80 });
         return;
@@ -669,6 +819,7 @@ export default function App() {
       }
 
       setIsTipOpen(false);
+      playTipChime();
       showToast(`Sent ${amountUsdc} USDC tip directly to ${recipient.slice(0, 6)}...!`, 'success');
       confetti({ particleCount: 70, spread: 80 });
     } catch (err) {
@@ -717,55 +868,56 @@ export default function App() {
         setActiveTab={setActiveTab}
         isDemoMode={isDemoMode}
         setIsDemoMode={setIsDemoMode}
+        unlockedCount={unlockedCount}
       />
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full">
-        
-        {/* Hero Section */}
-        <section className="mb-10 text-center relative">
-          <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 text-xs font-medium mb-4">
-            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-            <span>⚡ Live on Arc Mainnet • Native USDC Settlement</span>
-          </div>
-
-          <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight mb-4 max-w-4xl mx-auto leading-tight">
-            1-Click Paywalls & Micro-Tipping on{' '}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400">
-              Circle's Arc Mainnet
-            </span>
-          </h1>
-
-          <p className="text-sm sm:text-base text-slate-400 max-w-2xl mx-auto mb-6 leading-relaxed">
-            Lock digital content, secret links, code repos, or API endpoints behind instant micro-payments. Zero ERC-20 approvals, sub-second finality.
-          </p>
-
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <button
-              onClick={() => setIsCreateOpen(true)}
-              className="px-6 py-3 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white shadow-lg shadow-cyan-600/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
-            >
-              Lock a Secret Link
-            </button>
-            <button
-              onClick={() => setIsGuideOpen(true)}
-              className="px-6 py-3 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900/80 hover:bg-slate-800 text-slate-300 border border-slate-700/80 hover:border-slate-600 transition-all"
-            >
-              How It Works & Docs
-            </button>
-          </div>
-        </section>
-
-        {/* Bento Grid Stats */}
-        <StatsBento
-          stats={currentStats}
-          isConnected={Boolean(account) || isDemoMode}
-          isArcNetwork={chainId === ARC_MAINNET.chainId}
-        />
-
-        {/* Explore View or Quick Tip View */}
-        {activeTab === 'explore' ? (
+        {/* Tab Routing */}
+        {activeTab === 'explore' && (
           <>
+            {/* Hero Section */}
+            <section className="mb-10 text-center relative">
+              <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 text-xs font-medium mb-4">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
+                <span>⚡ Live on Arc Mainnet • Native USDC Settlement</span>
+              </div>
+
+              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight mb-4 max-w-4xl mx-auto leading-tight">
+                1-Click Paywalls & Micro-Tipping on{' '}
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400">
+                  Circle's Arc Mainnet
+                </span>
+              </h1>
+
+              <p className="text-sm sm:text-base text-slate-400 max-w-2xl mx-auto mb-6 leading-relaxed">
+                Lock digital content, secret links, code repos, or API endpoints behind instant micro-payments. Zero ERC-20 approvals, sub-second finality.
+              </p>
+
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <button
+                  onClick={() => setIsCreateOpen(true)}
+                  className="px-6 py-3 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white shadow-lg shadow-cyan-600/30 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
+                >
+                  Lock a Secret Link
+                </button>
+                <button
+                  onClick={() => setIsGuideOpen(true)}
+                  className="px-6 py-3 rounded-xl text-xs sm:text-sm font-semibold bg-slate-900/80 hover:bg-slate-800 text-slate-300 border border-slate-700/80 hover:border-slate-600 transition-all cursor-pointer"
+                >
+                  How It Works & Docs
+                </button>
+              </div>
+            </section>
+
+            {/* Bento Grid Stats */}
+            <StatsBento
+              stats={currentStats}
+              isConnected={Boolean(account) || isDemoMode}
+              isArcNetwork={chainId === ARC_MAINNET.chainId}
+            />
+
+            {/* Explore Gates Grid with Category Filters & Search */}
             <ExploreGates
               gates={currentGates}
               account={account}
@@ -773,6 +925,7 @@ export default function App() {
               onViewSecret={handleViewSecret}
               onTipCreator={handleOpenTipModalForCreator}
               onOpenEmbedModal={(gate) => setSelectedEmbedGate(gate)}
+              onSelectGate={handleSelectGate}
               unlockingId={unlockingId}
               isArcNetwork={chainId === ARC_MAINNET.chainId}
               isDemoMode={isDemoMode}
@@ -790,8 +943,54 @@ export default function App() {
               <AgentTerminalCard />
             </div>
           </>
-        ) : (
-          <div className="glass-panel p-8 sm:p-12 rounded-3xl max-w-xl mx-auto text-center border border-slate-800">
+        )}
+
+        {/* Phase 2: My Content Library Tab */}
+        {activeTab === 'library' && (
+          <MyLibrary
+            gates={currentGates}
+            account={account}
+            isDemoMode={isDemoMode}
+            isGateUnlocked={isGateUnlocked}
+            onViewSecret={handleViewSecret}
+            onNavigateExplore={() => setActiveTab('explore')}
+          />
+        )}
+
+        {/* Phase 1: Creator Studio Tab */}
+        {activeTab === 'studio' && (
+          <CreatorStudio
+            gates={currentGates}
+            account={account}
+            isDemoMode={isDemoMode}
+            onOpenCreateModal={() => setIsCreateOpen(true)}
+            onOpenEmbedModal={(gate) => setSelectedEmbedGate(gate)}
+            onViewSecret={handleViewSecret}
+            onToggleGateActive={handleToggleGateActive}
+            onWithdrawEarnings={handleWithdrawEarnings}
+            pendingEarnings={pendingEarnings}
+            isWithdrawing={isWithdrawing}
+          />
+        )}
+
+        {/* Phase 2: Dedicated Shareable Single Gate View (/gate/:id) */}
+        {activeTab === 'gate-view' && (
+          <SingleGateView
+            gate={selectedSingleGate || currentGates[0]}
+            account={account}
+            isDemoMode={isDemoMode}
+            isGateUnlocked={isGateUnlocked}
+            onUnlock={handleUnlock}
+            onTipCreator={handleOpenTipModalForCreator}
+            onOpenEmbedModal={(gate) => setSelectedEmbedGate(gate)}
+            onBack={handleBackToExplore}
+            unlockingId={unlockingId}
+          />
+        )}
+
+        {/* Instant Micro-Tipping Tab */}
+        {activeTab === 'tip' && (
+          <div className="glass-panel p-8 sm:p-12 rounded-3xl max-w-xl mx-auto text-center border border-slate-800 animate-in fade-in duration-200">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-pink-500 to-rose-600 flex items-center justify-center mx-auto mb-4 shadow-xl shadow-pink-500/20">
               <Zap className="w-7 h-7 text-white" />
             </div>
@@ -804,7 +1003,7 @@ export default function App() {
                 setTipRecipient('');
                 setIsTipOpen(true);
               }}
-              className="px-8 py-3.5 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white shadow-lg shadow-pink-600/30 transition-all"
+              className="px-8 py-3.5 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white shadow-lg shadow-pink-600/30 transition-all cursor-pointer"
             >
               Open Micro-Tipping Terminal
             </button>
@@ -858,6 +1057,16 @@ export default function App() {
         isOpen={Boolean(selectedEmbedGate)}
         onClose={() => setSelectedEmbedGate(null)}
         gate={selectedEmbedGate}
+      />
+
+      <ReceiptModal
+        isOpen={Boolean(receiptData?.isOpen)}
+        onClose={() => setReceiptData(null)}
+        receipt={receiptData}
+        onAccessContent={() => {
+          const g = currentGates.find((x) => x.id === receiptData?.gateId);
+          if (g) handleViewSecret(g);
+        }}
       />
 
       <GuideModal

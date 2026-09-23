@@ -29,6 +29,7 @@ export default function Navbar({
   setActiveTab,
   isDemoMode,
   setIsDemoMode,
+  unlockedCount = 0,
 }) {
   const [isWalletMenuOpen, setIsWalletMenuOpen] = useState(false);
   const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
@@ -85,7 +86,7 @@ export default function Navbar({
         <nav className="hidden lg:flex items-center space-x-1 p-1 bg-slate-900/60 rounded-xl border border-slate-800/80">
           <button
             onClick={() => setActiveTab('explore')}
-            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all ${
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
               activeTab === 'explore'
                 ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
@@ -93,9 +94,37 @@ export default function Navbar({
           >
             Explore Gates
           </button>
+
+          <button
+            onClick={() => setActiveTab('library')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer ${
+              activeTab === 'library'
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <span>My Library</span>
+            {unlockedCount > 0 && (
+              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/40">
+                {unlockedCount}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('studio')}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+              activeTab === 'studio'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Creator Studio
+          </button>
+
           <button
             onClick={() => setActiveTab('tip')}
-            className={`px-4 py-2 text-xs font-semibold rounded-lg transition-all ${
+            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
               activeTab === 'tip'
                 ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
@@ -103,9 +132,10 @@ export default function Navbar({
           >
             Instant Tip
           </button>
+
           <button
             onClick={onOpenGuideModal}
-            className="px-4 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 rounded-lg flex items-center space-x-1 transition-all"
+            className="px-3 py-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 rounded-lg flex items-center space-x-1 transition-all cursor-pointer"
           >
             <span>How It Works</span>
             <Sparkles className="w-3.5 h-3.5 text-amber-400" />
@@ -251,7 +281,7 @@ export default function Navbar({
               setActiveTab('explore');
               setIsMobileNavOpen(false);
             }}
-            className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+            className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'explore'
                 ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
                 : 'text-slate-300 hover:bg-slate-900'
@@ -261,10 +291,41 @@ export default function Navbar({
           </button>
           <button
             onClick={() => {
+              setActiveTab('library');
+              setIsMobileNavOpen(false);
+            }}
+            className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center justify-between cursor-pointer ${
+              activeTab === 'library'
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                : 'text-slate-300 hover:bg-slate-900'
+            }`}
+          >
+            <span>My Library</span>
+            {unlockedCount > 0 && (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-950 text-emerald-300 border border-emerald-500/40">
+                {unlockedCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('studio');
+              setIsMobileNavOpen(false);
+            }}
+            className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+              activeTab === 'studio'
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+                : 'text-slate-300 hover:bg-slate-900'
+            }`}
+          >
+            Creator Studio
+          </button>
+          <button
+            onClick={() => {
               setActiveTab('tip');
               setIsMobileNavOpen(false);
             }}
-            className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+            className={`w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
               activeTab === 'tip'
                 ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
                 : 'text-slate-300 hover:bg-slate-900'
@@ -277,7 +338,7 @@ export default function Navbar({
               onOpenGuideModal();
               setIsMobileNavOpen(false);
             }}
-            className="w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:bg-slate-900 flex items-center justify-between"
+            className="w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold text-slate-300 hover:bg-slate-900 flex items-center justify-between cursor-pointer"
           >
             <span>How It Works</span>
             <Sparkles className="w-4 h-4 text-amber-400" />
@@ -287,7 +348,7 @@ export default function Navbar({
               onOpenCreateModal();
               setIsMobileNavOpen(false);
             }}
-            className="w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-cyan-600 to-blue-600 text-white flex items-center space-x-2"
+            className="w-full text-left px-4 py-2.5 rounded-xl text-xs font-semibold bg-gradient-to-r from-cyan-600 to-blue-600 text-white flex items-center space-x-2 cursor-pointer"
           >
             <PlusCircle className="w-4 h-4" />
             <span>Create Paywalled Gate</span>

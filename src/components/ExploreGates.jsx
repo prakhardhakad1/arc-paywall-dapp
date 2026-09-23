@@ -1,6 +1,32 @@
 import React, { useState } from 'react';
-import { Lock, Unlock, ExternalLink, Heart, Clock, User, ArrowUpRight, CheckCircle2, Search, Code2, Eye, TrendingUp, RotateCcw } from 'lucide-react';
+import {
+  Lock,
+  Unlock,
+  ExternalLink,
+  Heart,
+  Clock,
+  User,
+  ArrowUpRight,
+  CheckCircle2,
+  Search,
+  Code2,
+  Eye,
+  TrendingUp,
+  RotateCcw,
+  SlidersHorizontal,
+  ChevronDown,
+  Sparkles,
+} from 'lucide-react';
 import { dbService } from '../lib/db';
+import { getContentType } from '../lib/contentDetector';
+
+const CATEGORIES = [
+  { id: 'all', label: 'All Content' },
+  { id: 'alpha', label: 'Research & Alpha' },
+  { id: 'code', label: 'Code Repos' },
+  { id: 'invites', label: 'Private Channels' },
+  { id: 'datasets', label: 'Datasets & APIs' },
+];
 
 export default function ExploreGates({
   gates,
@@ -9,6 +35,7 @@ export default function ExploreGates({
   onViewSecret,
   onTipCreator,
   onOpenEmbedModal,
+  onSelectGate,
   unlockingId,
   isArcNetwork,
   isDemoMode,
@@ -16,15 +43,39 @@ export default function ExploreGates({
   onResetSandbox,
 }) {
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [sortBy, setSortBy] = useState('popular');
 
-  const filteredGates = gates.filter((g) => {
-    const term = searchTerm.toLowerCase();
-    return (
-      g.title.toLowerCase().includes(term) ||
-      g.description.toLowerCase().includes(term) ||
-      g.creator.toLowerCase().includes(term)
-    );
-  });
+  // Filter gates
+  const filteredGates = gates
+    .filter((g) => {
+      const term = searchTerm.toLowerCase();
+      const matchesSearch =
+        g.title.toLowerCase().includes(term) ||
+        g.description.toLowerCase().includes(term) ||
+        g.creator.toLowerCase().includes(term);
+
+      if (!matchesSearch) return false;
+
+      if (selectedCategory === 'all') return true;
+      const contentType = getContentType(g);
+      return contentType.category === selectedCategory;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'popular') {
+        return (b.unlockCount || 0) - (a.unlockCount || 0);
+      }
+      if (sortBy === 'newest') {
+        return (b.createdAt || 0) - (a.createdAt || 0);
+      }
+      if (sortBy === 'price_asc') {
+        return parseFloat(a.priceUsdcFormatted || '0') - parseFloat(b.priceUsdcFormatted || '0');
+      }
+      if (sortBy === 'price_desc') {
+        return parseFloat(b.priceUsdcFormatted || '0') - parseFloat(a.priceUsdcFormatted || '0');
+      }
+      return 0;
+    });
 
   const truncateAddress = (addr) => {
     if (!addr) return '';
@@ -85,80 +136,141 @@ export default function ExploreGates({
         </div>
       </div>
 
+      {/* Category Chips and Sort Controls */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+        {/* Category Filter Chips */}
+        <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+                selectedCategory === cat.id
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                  : 'bg-slate-900/80 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Sorting Dropdown */}
+        <div className="flex items-center space-x-2 self-end sm:self-auto">
+          <span className="text-xs text-slate-400 flex items-center space-x-1">
+            <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
+            <span className="hidden sm:inline">Sort:</span>
+          </span>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="bg-slate-900/90 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 transition-all cursor-pointer font-medium"
+          >
+            <option value="popular">Most Popular</option>
+            <option value="newest">Newest First</option>
+            <option value="price_asc">Price: Low to High</option>
+            <option value="price_desc">Price: High to Low</option>
+          </select>
+        </div>
+      </div>
+
       {/* Grid of Gates */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {filteredGates.map((gate) => {
           const isCreator = !isDemoMode && account && gate.creator && gate.creator.toLowerCase() === account.toLowerCase();
           const isUnlocked = isGateUnlocked ? isGateUnlocked(gate) : (isDemoMode ? Boolean(gate.isUnlocked) : false);
           const isCurrentlyUnlocking = unlockingId === gate.id;
+          const isPaused = gate.active === false;
+          const badge = getContentType(gate);
+          const BadgeIcon = badge.icon;
           const stats = dbService.getGateStats(gate.id, gate.unlockCount, parseFloat(gate.priceUsdcFormatted || 0.1));
 
           return (
             <div
               key={gate.id}
-              className={`glass-card rounded-2xl p-6 flex flex-col justify-between border relative overflow-hidden transition-all ${
+              className={`glass-card rounded-2xl p-6 flex flex-col justify-between border relative overflow-hidden transition-all group ${
                 isUnlocked
                   ? 'border-emerald-500/30 hover:border-emerald-500/50'
+                  : isPaused
+                  ? 'border-amber-500/30 bg-amber-950/10'
                   : 'border-slate-800 hover:border-cyan-500/40'
               }`}
             >
-              {/* Top Banner Tag */}
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-1.5 text-[11px] text-slate-400">
-                  <User className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="font-mono">{truncateAddress(gate.creator)}</span>
-                  {isCreator && (
-                    <span className="text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800/60 px-1.5 py-0.2 rounded font-semibold">
-                      You
+              <div>
+                {/* Top Banner Tag */}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center space-x-1.5 text-[11px] text-slate-400">
+                    <User className="w-3.5 h-3.5 text-slate-500" />
+                    <span className="font-mono">{truncateAddress(gate.creator)}</span>
+                    {isCreator && (
+                      <span className="text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800/60 px-1.5 py-0.2 rounded font-semibold">
+                        You
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center space-x-1.5">
+                    <span className="text-[11px] text-slate-500 flex items-center space-x-1 mr-1">
+                      <Clock className="w-3 h-3" />
+                      <span>{formatDate(gate.createdAt)}</span>
                     </span>
-                  )}
+                    
+                    {isUnlocked ? (
+                      <span className="inline-flex items-center space-x-1 text-[11px] font-semibold text-emerald-400 bg-emerald-950/70 border border-emerald-500/30 px-2 py-0.5 rounded-full">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>Unlocked</span>
+                      </span>
+                    ) : isPaused ? (
+                      <span className="inline-flex items-center space-x-1 text-[11px] font-semibold text-amber-400 bg-amber-950/70 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                        <span>Paused</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center space-x-1 text-[11px] font-semibold text-amber-400/90 bg-amber-950/40 border border-amber-500/20 px-2 py-0.5 rounded-full">
+                        <Lock className="w-3 h-3 text-amber-400" />
+                        <span>Paywalled</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                <div className="flex items-center space-x-1.5">
-                  <span className="text-[11px] text-slate-500 flex items-center space-x-1 mr-1">
-                    <Clock className="w-3 h-3" />
-                    <span>{formatDate(gate.createdAt)}</span>
+                {/* Rich Content Badge */}
+                <div className="mb-2">
+                  <span className={`inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold ${badge.bg} ${badge.text} border ${badge.border}`}>
+                    <BadgeIcon className="w-3 h-3" />
+                    <span>{badge.label}</span>
                   </span>
-                  
-                  {isUnlocked ? (
-                    <span className="inline-flex items-center space-x-1 text-[11px] font-semibold text-emerald-400 bg-emerald-950/70 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                      <CheckCircle2 className="w-3 h-3" />
-                      <span>Unlocked</span>
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center space-x-1 text-[11px] font-semibold text-amber-300 bg-amber-950/60 border border-amber-500/30 px-2 py-0.5 rounded-full">
-                      <Lock className="w-3 h-3" />
-                      <span>Paywalled</span>
-                    </span>
-                  )}
                 </div>
-              </div>
 
-              {/* Title & Description */}
-              <div className="mb-5 flex-1">
-                <h3 className="text-base font-bold text-white tracking-tight mb-2 line-clamp-2">
-                  {gate.title}
+                {/* Gate Title (clickable to single gate landing view) */}
+                <h3
+                  onClick={() => onSelectGate && onSelectGate(gate)}
+                  className="text-base font-bold text-white mb-2 leading-snug group-hover:text-cyan-300 transition-colors line-clamp-2 cursor-pointer flex items-center space-x-1"
+                >
+                  <span>{gate.title}</span>
+                  <ArrowUpRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 text-cyan-400" />
                 </h3>
-                <p className="text-xs text-slate-400 leading-relaxed line-clamp-3 mb-3">
+
+                {/* Gate Description */}
+                <p className="text-xs text-slate-400 leading-relaxed mb-4 line-clamp-3">
                   {gate.description}
                 </p>
-
-                {/* Micro Analytics Badge */}
-                <div className="flex items-center space-x-3 text-[10px] text-slate-400 font-mono pt-1">
-                  <span className="flex items-center space-x-1">
-                    <Eye className="w-3 h-3 text-slate-500" />
-                    <span>{stats.views} views</span>
-                  </span>
-                  <span className="flex items-center space-x-1">
-                    <TrendingUp className="w-3 h-3 text-emerald-400" />
-                    <span>{stats.conversionRate}% conv</span>
-                  </span>
-                </div>
               </div>
 
-              {/* Pricing & Footer Actions */}
-              <div className="pt-4 border-t border-slate-800/90 flex flex-col gap-3">
-                <div className="flex items-center justify-between">
+              <div>
+                {/* Simulated Telemetry / Views & Conversion */}
+                <div className="flex items-center justify-between text-[11px] text-slate-400 py-2 border-t border-slate-800/80 mb-3">
+                  <span className="flex items-center space-x-1">
+                    <Eye className="w-3 h-3 text-slate-400" />
+                    <span>{stats.views} views</span>
+                  </span>
+                  <span className="flex items-center space-x-1 text-emerald-400 font-medium">
+                    <TrendingUp className="w-3 h-3" />
+                    <span>{stats.conversion}% conv</span>
+                  </span>
+                </div>
+
+                {/* Pricing / Access Fee */}
+                <div className="flex items-baseline justify-between mb-4">
                   <div>
                     <span className="text-[11px] text-slate-400 uppercase tracking-wider block">
                       Access Fee
@@ -183,7 +295,7 @@ export default function ExploreGates({
                   {isUnlocked ? (
                     <button
                       onClick={() => onViewSecret(gate)}
-                      className="col-span-4 inline-flex items-center justify-center space-x-1.5 py-2.5 px-3 rounded-xl text-xs font-semibold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 transition-all shadow-sm"
+                      className="col-span-4 inline-flex items-center justify-center space-x-1.5 py-2.5 px-3 rounded-xl text-xs font-semibold bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 transition-all shadow-sm cursor-pointer"
                     >
                       <Unlock className="w-3.5 h-3.5" />
                       <span>View Secret</span>
@@ -191,12 +303,16 @@ export default function ExploreGates({
                   ) : (
                     <button
                       onClick={() => onUnlock(gate)}
-                      disabled={isCurrentlyUnlocking}
-                      className="col-span-4 inline-flex items-center justify-center space-x-1.5 py-2.5 px-3 rounded-xl text-xs font-semibold bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-md shadow-cyan-600/20 transition-all disabled:opacity-50"
+                      disabled={isCurrentlyUnlocking || isPaused}
+                      className="col-span-4 inline-flex items-center justify-center space-x-1.5 py-2.5 px-3 rounded-xl text-xs font-semibold bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-md shadow-cyan-600/20 transition-all disabled:opacity-50 cursor-pointer"
                     >
                       <Lock className="w-3.5 h-3.5" />
                       <span className="truncate">
-                        {isCurrentlyUnlocking ? 'Unlocking...' : `Unlock • ${gate.priceUsdcFormatted} USDC`}
+                        {isCurrentlyUnlocking
+                          ? 'Unlocking...'
+                          : isPaused
+                          ? 'Paused by Creator'
+                          : `Unlock • ${gate.priceUsdcFormatted} USDC`}
                       </span>
                     </button>
                   )}
@@ -205,7 +321,7 @@ export default function ExploreGates({
                   <button
                     onClick={() => onOpenEmbedModal(gate)}
                     title="Get 1-line HTML / React embed snippet"
-                    className="col-span-1 inline-flex items-center justify-center p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700/80 transition-all hover:scale-105 active:scale-95"
+                    className="col-span-1 inline-flex items-center justify-center p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-400 border border-slate-700/80 transition-all hover:scale-105 active:scale-95 cursor-pointer"
                   >
                     <Code2 className="w-4 h-4" />
                   </button>
@@ -214,7 +330,7 @@ export default function ExploreGates({
                   <button
                     onClick={() => onTipCreator(gate.creator)}
                     title="Send a direct micro-tip to creator"
-                    className="col-span-1 inline-flex items-center justify-center p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-pink-400 border border-slate-700/80 transition-all hover:scale-105 active:scale-95"
+                    className="col-span-1 inline-flex items-center justify-center p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-pink-400 border border-slate-700/80 transition-all hover:scale-105 active:scale-95 cursor-pointer"
                   >
                     <Heart className="w-4 h-4 fill-pink-500/20" />
                   </button>
@@ -230,7 +346,7 @@ export default function ExploreGates({
           <Lock className="w-10 h-10 text-slate-600 mx-auto mb-3" />
           <h3 className="text-base font-bold text-white mb-1">No gates found</h3>
           <p className="text-xs text-slate-400">
-            Try adjusting your search query or create a new paywalled link!
+            Try adjusting your search query, selecting another category, or creating a new paywalled link!
           </p>
         </div>
       )}

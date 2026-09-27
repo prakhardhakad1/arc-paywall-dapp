@@ -942,6 +942,11 @@ export default function App() {
             });
             const escrowJson = await escrowRes.json();
             if (escrowRes.ok) {
+              const nextKeys = { ...liveGateKeys, [Number(created.args.id)]: newGateData.gateKey };
+              setLiveGateKeys(nextKeys);
+              try {
+                localStorage.setItem(STORAGE_LIVE_KEYS_KEY, JSON.stringify(nextKeys));
+              } catch (e) {}
               showToast(`Gate #${created.args.id} published. Decryption key escrowed for verified buyers.`, 'success');
             } else {
               showToast(`Gate published, but key escrow failed: ${escrowJson.error}`, 'error');

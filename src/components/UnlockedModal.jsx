@@ -19,6 +19,11 @@ export default function UnlockedModal({ isOpen, onClose, gate, isDemoMode }) {
 
   // Decrypt secret payload on-the-fly client side
   useEffect(() => {
+    if (gate?.keyError) {
+      setDecryptedText(`🔒 ${gate.keyError}`);
+      setIsDecrypting(false);
+      return;
+    }
     if (gate?.secretPayload) {
       setIsDecrypting(true);
       const gateKey = gate.gateKey || (isEncryptedEnvelope(gate.secretPayload) ? getSandboxDemoKey(gate.id) : null);

@@ -770,8 +770,18 @@ export default function App() {
       showToast(`Transaction broadcast: ${tx.hash.slice(0, 10)}... Sub-second finality`, 'info');
       await tx.wait(1);
 
+      // The contract only exposes the payload to participants, so re-read it now
+      // that this wallet is unlocked, then release the key that decrypts it.
+      try {
+        const unlockedData = await contract.getGate(gate.id);
+        gate.secretPayload = unlockedData.secretPayload;
+      } catch (e) {
+        console.warn('Post-unlock gate re-read failed:', e);
+      }
+
       // Release the decryption key only after server-side receipt verification
       let releasedKey = null;
+      let keyError = null;
       try {
         const keyRes = await fetch('/api/unlock', {
           method: 'POST',
@@ -782,12 +792,15 @@ export default function App() {
         if (keyRes.ok && keyJson.key) {
           releasedKey = keyJson.key;
         } else {
-          console.warn('Key release unavailable:', keyJson.error);
+          keyError = keyJson.error || 'Decryption key unavailable for this gate.';
+          console.warn('Key release unavailable:', keyError);
         }
       } catch (e) {
+        keyError = 'Key escrow service unreachable. Please retry in a moment.';
         console.warn('Key escrow service unreachable:', e);
       }
       gate.gateKey = releasedKey;
+      gate.keyError = keyError;
       if (releasedKey) {
         const nextKeys = { ...liveGateKeys, [gate.id]: releasedKey };
         setLiveGateKeys(nextKeys);

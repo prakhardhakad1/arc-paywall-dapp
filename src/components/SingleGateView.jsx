@@ -42,6 +42,11 @@ export default function SingleGateView({
 
   // Client-side decryption of payload when unlocked
   useEffect(() => {
+    if (isUnlocked && gate?.keyError) {
+      setDecryptedText(`🔒 ${gate.keyError}`);
+      setIsDecrypting(false);
+      return;
+    }
     if (isUnlocked && gate?.secretPayload) {
       setIsDecrypting(true);
       const gateKey = gate.gateKey || (isEncryptedEnvelope(gate.secretPayload) ? getSandboxDemoKey(gate.id) : null);

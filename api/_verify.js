@@ -79,7 +79,7 @@ export function parseGateCreated(receipt) {
   const topic = IFACE.getEvent('GateCreated').topicHash;
   const log = (receipt.logs || []).find((l) => (l.topics || [])[0] === topic);
   if (!log) return null;
-  const parsed = IFACE.decodeEventLog('GateCreated', log.topics, log.data);
+  const parsed = IFACE.decodeEventLog('GateCreated', log.data, log.topics);
   return { gateId: Number(parsed.id), creator: parsed.creator.toLowerCase() };
 }
 

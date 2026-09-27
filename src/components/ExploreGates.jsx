@@ -50,6 +50,8 @@ export default function ExploreGates({
   // Filter gates
   const filteredGates = gates
     .filter((g) => {
+      // Paused gates stay visible only to their creator (Creator Studio), never as purchasable listings
+      if (g.active === false) return false;
       const term = searchTerm.toLowerCase();
       const matchesSearch =
         g.title.toLowerCase().includes(term) ||

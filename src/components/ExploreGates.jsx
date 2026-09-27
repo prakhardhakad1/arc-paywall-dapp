@@ -126,9 +126,11 @@ export default function ExploreGates({
 
         {/* Search */}
         <div className="relative w-full sm:w-72">
-          <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
+            id="gate-search"
+            name="gate-search"
             aria-label="Search paywalled gates or creator addresses"
             placeholder="Search gates or creators..."
             value={searchTerm}
@@ -208,9 +210,9 @@ export default function ExploreGates({
                 {/* Top Banner Tag */}
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center space-x-1.5 text-[11px] text-slate-400">
-                    <User className="w-3.5 h-3.5 text-slate-500" />
+                    <User className="w-3.5 h-3.5 text-slate-400" />
                     <span className="font-mono text-cyan-400 font-semibold">{formatCreatorHandle(gate.creator)}</span>
-                    <span className="font-mono text-slate-500 text-[10px] hidden sm:inline">({truncateAddress(gate.creator)})</span>
+                    <span className="font-mono text-slate-400 text-[10px] hidden sm:inline">({truncateAddress(gate.creator)})</span>
                     {isCreator && (
                       <span className="text-[10px] bg-cyan-950 text-cyan-300 border border-cyan-800/60 px-1.5 py-0.2 rounded font-semibold">
                         You
@@ -219,7 +221,7 @@ export default function ExploreGates({
                   </div>
 
                   <div className="flex items-center space-x-1.5">
-                    <span className="text-[11px] text-slate-500 flex items-center space-x-1 mr-1">
+                    <span className="text-[11px] text-slate-400 flex items-center space-x-1 mr-1">
                       <Clock className="w-3 h-3" />
                       <span>{formatDate(gate.createdAt)}</span>
                     </span>

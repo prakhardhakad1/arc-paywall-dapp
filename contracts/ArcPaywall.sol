@@ -172,7 +172,7 @@ contract ArcPaywall {
     function setGateActive(uint256 gateId, bool active) external {
         Gate storage g = gates[gateId];
         require(g.id != 0, "Gate does not exist");
-        require(msg.sender == g.creator || msg.sender == owner, "Unauthorized");
+        require(msg.sender == g.creator, "Only creator can toggle gate");
 
         g.active = active;
         emit GateStatusChanged(gateId, active);

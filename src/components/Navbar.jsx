@@ -176,7 +176,7 @@ export default function Navbar({
             title={muted ? 'Unmute Web Audio Chimes' : 'Mute Web Audio Chimes'}
             className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:text-white transition-all cursor-pointer"
           >
-            {muted ? <VolumeX className="w-4 h-4 text-slate-500" /> : <Volume2 className="w-4 h-4 text-cyan-400" />}
+            {muted ? <VolumeX className="w-4 h-4 text-slate-400" /> : <Volume2 className="w-4 h-4 text-cyan-400" />}
           </button>
 
           {/* Mode Switcher Toggle with Guaranteed Spacing */}
@@ -186,7 +186,7 @@ export default function Navbar({
               onClick={() => setIsDemoMode(false)}
               className={`px-2.5 py-1 rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
                 !isDemoMode
-                  ? 'bg-cyan-600 text-white shadow-sm'
+                  ? 'bg-cyan-700 text-white shadow-sm'
                   : 'text-slate-300 hover:text-white'
               }`}
               title="Interact with real MetaMask and Arc Mainnet"
@@ -199,7 +199,7 @@ export default function Navbar({
               onClick={() => setIsDemoMode(true)}
               className={`px-2.5 py-1 rounded-lg transition-all flex items-center space-x-1.5 cursor-pointer whitespace-nowrap ${
                 isDemoMode
-                  ? 'bg-amber-600 text-white shadow-sm'
+                  ? 'bg-amber-700 text-white shadow-sm'
                   : 'text-slate-300 hover:text-white'
               }`}
               title="Test instantly with zero wallet friction"

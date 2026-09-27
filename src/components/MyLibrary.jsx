@@ -67,7 +67,7 @@ export default function MyLibrary({
       {/* Grid of Unlocked Content */}
       {unlockedGates.length === 0 ? (
         <div className="glass-panel p-12 sm:p-16 rounded-3xl text-center border border-slate-800 max-w-lg mx-auto">
-          <div className="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto mb-4 text-slate-500">
+          <div className="w-14 h-14 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto mb-4 text-slate-400">
             <Bookmark className="w-7 h-7" />
           </div>
           <h3 className="text-lg font-bold text-white mb-2">Your library is empty</h3>
@@ -127,16 +127,16 @@ export default function MyLibrary({
                   {/* License Token Strip */}
                   <div className="p-2.5 rounded-xl bg-slate-950/60 border border-slate-800/80 text-[11px] text-slate-400 mb-5 space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[10px] uppercase font-semibold text-slate-500">License ID</span>
+                      <span className="text-[10px] uppercase font-semibold text-slate-400">License ID</span>
                       <span className="font-mono text-[11px] text-emerald-300 font-semibold">{formatLicenseId(gate.id, account)}</span>
                     </div>
                     <div className="flex items-center justify-between pt-1 border-t border-slate-900">
                       <span className="flex items-center space-x-1 font-mono text-[11px]">
-                        <User className="w-3 h-3 text-slate-500" />
+                        <User className="w-3 h-3 text-slate-400" />
                         <span className="text-cyan-400">{formatCreatorHandle(gate.creator)}</span>
                       </span>
-                      <span className="flex items-center space-x-1 text-[10px] text-slate-500">
-                        <Clock className="w-3 h-3 text-slate-500" />
+                      <span className="flex items-center space-x-1 text-[10px] text-slate-400">
+                        <Clock className="w-3 h-3 text-slate-400" />
                         <span>{formatDate(gate.createdAt)}</span>
                       </span>
                     </div>

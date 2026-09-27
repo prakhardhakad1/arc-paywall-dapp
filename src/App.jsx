@@ -44,6 +44,7 @@ const STORAGE_PENDING_EARNINGS_KEY = 'arcgate_pending_earnings_v4';
 const STORAGE_LIVE_UNLOCKS_KEY = 'arcgate_live_unlocks_v5';
 const STORAGE_LIVE_COUNTS_KEY = 'arcgate_live_counts_v5';
 const STORAGE_LIVE_GATES_KEY = 'arcgate_live_gates_v5';
+const STORAGE_LIVE_KEYS_KEY = 'arcgate_live_gate_keys_v1';
 
 const BASE_STATS = {
   volumeUsdc: '0.00',
@@ -167,6 +168,14 @@ export default function App() {
   });
 
   const [liveContractGates, setLiveContractGates] = useState([]);
+  const [protocolStats, setProtocolStats] = useState(null);
+  const [liveGateKeys, setLiveGateKeys] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_LIVE_KEYS_KEY) || '{}');
+    } catch (e) {
+      return {};
+    }
+  });
 
   // Dynamically resolve gates with real live/sandbox unlock counts
   const rawGates = isDemoMode
@@ -185,6 +194,15 @@ export default function App() {
 
   // Compute real protocol stats dynamically from currentGates (100% genuine data)
   const currentStats = React.useMemo(() => {
+    if (protocolStats) {
+      return {
+        volumeUsdc: protocolStats.volumeUsdc,
+        totalGates: protocolStats.totalGates.toString(),
+        totalUnlocks: protocolStats.totalUnlocks.toString(),
+        source: 'chain',
+      };
+    }
+
     const totalGates = currentGates.length.toString();
     const totalUnlocks = currentGates.reduce((sum, g) => sum + (g.unlockCount || 0), 0);
     const volumeUsdc = currentGates.reduce((sum, g) => {
@@ -196,8 +214,9 @@ export default function App() {
       volumeUsdc,
       totalGates,
       totalUnlocks: totalUnlocks.toString(),
+      source: 'preview',
     };
-  }, [currentGates]);
+  }, [currentGates, protocolStats]);
 
   // Strict check if a gate is unlocked
   const isGateUnlocked = (gate) => {
@@ -423,6 +442,51 @@ export default function App() {
     ARC_PAYWALL_CONTRACT_ADDRESS &&
     ARC_PAYWALL_CONTRACT_ADDRESS !== '0x0000000000000000000000000000000000000000';
 
+  // Global focus trap: keep Tab cycling inside the topmost open dialog
+  useEffect(() => {
+    const anyOpen =
+      Boolean(receiptData?.isOpen) ||
+      Boolean(selectedUnlockedGate) ||
+      isCreateOpen ||
+      isTipOpen ||
+      isGuideOpen ||
+      Boolean(selectedEmbedGate);
+    if (!anyOpen) return;
+
+    const FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const topDialog = () => {
+      const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
+      return dialogs[dialogs.length - 1] || null;
+    };
+
+    const initial = topDialog()?.querySelector(FOCUSABLE);
+    if (initial) initial.focus();
+
+    const onKeyDown = (e) => {
+      if (e.key !== 'Tab') return;
+      const dialog = topDialog();
+      if (!dialog) return;
+      const focusables = dialog.querySelectorAll(FOCUSABLE);
+      if (focusables.length === 0) return;
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (!dialog.contains(document.activeElement)) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [receiptData, selectedUnlockedGate, isCreateOpen, isTipOpen, isGuideOpen, selectedEmbedGate]);
+
+
   // -------------------------------------------------------------
   // WALLET & NETWORK HANDLERS
   // -------------------------------------------------------------
@@ -592,6 +656,18 @@ export default function App() {
         }));
         setLiveContractGates(formatted);
       }
+
+      try {
+        const s = await contract.getProtocolStats();
+        setProtocolStats({
+          totalGates: Number(s.totalGates),
+          totalUnlocks: Number(s.totalUnlocks),
+          totalTips: Number(s.totalTips),
+          volumeUsdc: parseFloat(ethers.formatUnits(s.totalVolume, 18)).toFixed(2),
+        });
+      } catch (e) {
+        console.warn('Protocol stats fetch failed:', e);
+      }
     } catch (err) {
       console.warn('Contract data fetch fallback to demo:', err);
     }
@@ -694,11 +770,31 @@ export default function App() {
       showToast(`Transaction broadcast: ${tx.hash.slice(0, 10)}... Sub-second finality`, 'info');
       await tx.wait(1);
 
-      // Cache revealed secret payload on-chain
+      // Release the decryption key only after server-side receipt verification
+      let releasedKey = null;
       try {
-        const unlockedData = await contract.getGate(gate.id);
-        gate.secretPayload = unlockedData.secretPayload;
-      } catch (e) {}
+        const keyRes = await fetch('/api/unlock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gate_id: gate.id, tx_hash: tx.hash, buyer: account }),
+        });
+        const keyJson = await keyRes.json();
+        if (keyRes.ok && keyJson.key) {
+          releasedKey = keyJson.key;
+        } else {
+          console.warn('Key release unavailable:', keyJson.error);
+        }
+      } catch (e) {
+        console.warn('Key escrow service unreachable:', e);
+      }
+      gate.gateKey = releasedKey;
+      if (releasedKey) {
+        const nextKeys = { ...liveGateKeys, [gate.id]: releasedKey };
+        setLiveGateKeys(nextKeys);
+        try {
+          localStorage.setItem(STORAGE_LIVE_KEYS_KEY, JSON.stringify(nextKeys));
+        } catch (e) {}
+      }
 
       // Record live unlock for this connected wallet address
       const userKey = account.toLowerCase();
@@ -727,7 +823,7 @@ export default function App() {
         localStorage.setItem(STORAGE_PENDING_EARNINGS_KEY, newPending);
       } catch (e) {}
 
-      dbService.recordUnlock(gate.id, account, gate.priceUsdcFormatted, broadcastTx?.hash || '0xArcLiveTxHash');
+      dbService.recordUnlock(gate.id, account, gate.priceUsdcFormatted, broadcastTx.hash);
 
       playUnlockChime();
       triggerConfetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
@@ -738,7 +834,7 @@ export default function App() {
         isOpen: true,
         isDemoMode: false,
         buyer: account,
-        txHash: broadcastTx?.hash || '0xArcLiveTxHash_48b19a22cc81b',
+        txHash: broadcastTx.hash,
         amountUsdc: gate.priceUsdcFormatted,
         gateTitle: gate.title,
         gateId: gate.id,
@@ -807,8 +903,40 @@ export default function App() {
         );
 
         showToast(`Gate publishing broadcast: ${tx.hash.slice(0, 10)}...`, 'info');
-        await tx.wait(1);
+        const receipt = await tx.wait(1);
+        const iface = new ethers.Interface(ARC_PAYWALL_ABI);
+        const created = receipt.logs
+          .map((log) => {
+            try {
+              return iface.parseLog(log);
+            } catch (e) {
+              return null;
+            }
+          })
+          .find((p) => p && p.name === 'GateCreated');
         await fetchContractGates();
+
+        if (created && newGateData.gateKey) {
+          try {
+            const escrowRes = await fetch('/api/keys', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                gate_id: Number(created.args.id),
+                key: newGateData.gateKey,
+                create_tx_hash: tx.hash,
+              }),
+            });
+            const escrowJson = await escrowRes.json();
+            if (escrowRes.ok) {
+              showToast(`Gate #${created.args.id} published. Decryption key escrowed for verified buyers.`, 'success');
+            } else {
+              showToast(`Gate published, but key escrow failed: ${escrowJson.error}`, 'error');
+            }
+          } catch (e) {
+            showToast('Gate published, but the key escrow service is unreachable.', 'error');
+          }
+        }
         showToast('Paywalled Gate published successfully on Arc Mainnet!', 'success');
       } else {
         await new Promise((resolve) => setTimeout(resolve, 500));
@@ -850,7 +978,11 @@ export default function App() {
       showToast('This gate is paywalled! Connect wallet & pay on Arc Mainnet to unlock.', 'error');
       return;
     }
-    setSelectedUnlockedGate(gate);
+    setSelectedUnlockedGate(
+      gate && !gate.gateKey && liveGateKeys[gate.id]
+        ? { ...gate, gateKey: liveGateKeys[gate.id] }
+        : gate
+    );
   };
 
   const handleSendTip = async ({ recipient, amountUsdc, message }) => {
@@ -959,7 +1091,7 @@ export default function App() {
             <div className="flex items-center space-x-2 text-amber-300">
               <AlertTriangle className="w-4 h-4 flex-shrink-0 text-amber-400" />
               <span>
-                <strong>Wrong Network:</strong> Wallet connected to Chain ID <code className="font-mono bg-black/40 px-1.5 py-0.5 rounded text-amber-200">{chainId}</code>. ArcGate settles on Circle's Arc Mainnet (<code className="font-mono bg-black/40 px-1.5 py-0.5 rounded text-amber-200">5042</code>).
+                <strong>Wrong Network:</strong> Wallet connected to Chain ID <code className="font-mono bg-black/40 px-1.5 py-0.5 rounded text-amber-200">{chainId}</code>. ArcGate settles on Circle’s Arc Mainnet (<code className="font-mono bg-black/40 px-1.5 py-0.5 rounded text-amber-200">5042</code>).
               </span>
             </div>
             <button
@@ -1051,13 +1183,19 @@ export default function App() {
             <section className="mb-10 text-center relative">
               <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 text-xs font-medium mb-4">
                 <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-                <span>⚡ Live on Arc Mainnet • Native USDC Settlement</span>
+                <span>
+                  {isDemoMode
+                    ? '🧪 Sandbox Simulation • No Real Funds Moved'
+                    : isContractConfigured
+                      ? '⚡ Live on Arc Mainnet • Native USDC Settlement'
+                      : ' Arc Mainnet Ready • Contract in Standby'}
+                </span>
               </div>
 
               <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight mb-4 max-w-4xl mx-auto leading-tight">
                 1-Click Paywalls & Micro-Tipping on{' '}
                 <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400">
-                  Circle's Arc Mainnet
+                  Circle’s Arc Mainnet
                 </span>
               </h1>
 
@@ -1184,7 +1322,7 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800/80 bg-[#06080c] py-8 mt-12 text-center text-xs text-slate-500">
+      <footer className="border-t border-slate-800/80 bg-[#06080c] py-8 mt-12 text-center text-xs text-slate-400">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center space-x-2">
             <div className="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></div>
@@ -1222,6 +1360,7 @@ export default function App() {
         isOpen={Boolean(selectedUnlockedGate)}
         onClose={() => setSelectedUnlockedGate(null)}
         gate={selectedUnlockedGate}
+        isDemoMode={isDemoMode}
       />
 
       <EmbedWidgetModal

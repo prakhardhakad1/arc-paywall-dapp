@@ -1,7 +1,7 @@
 import { createClient } from '@libsql/client';
 
-const url = process.env.TURSO_DATABASE_URL || process.env.VITE_TURSO_DATABASE_URL;
-const authToken = process.env.TURSO_AUTH_TOKEN || process.env.VITE_TURSO_AUTH_TOKEN;
+const url = process.env.TURSO_DATABASE_URL;
+const authToken = process.env.TURSO_AUTH_TOKEN;
 
 async function main() {
   if (!url || !authToken) {
@@ -48,6 +48,15 @@ async function main() {
       tx_hash TEXT NOT NULL,
       amount_usdc REAL NOT NULL,
       message TEXT,
+      created_at INTEGER NOT NULL
+    );
+  `);
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS gate_keys (
+      gate_id INTEGER PRIMARY KEY,
+      key_text TEXT NOT NULL,
+      creator TEXT NOT NULL,
       created_at INTEGER NOT NULL
     );
   `);

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Unlock, Copy, Check, ExternalLink, ShieldCheck, Key } from 'lucide-react';
-import { decryptPayload, getDemoGateKey } from '../lib/crypto';
+import { decryptPayload, getSandboxDemoKey, isEncryptedEnvelope } from '../lib/crypto';
 
 export default function UnlockedModal({ isOpen, onClose, gate, isDemoMode }) {
   const [copied, setCopied] = useState(false);
@@ -21,10 +21,14 @@ export default function UnlockedModal({ isOpen, onClose, gate, isDemoMode }) {
   useEffect(() => {
     if (gate?.secretPayload) {
       setIsDecrypting(true);
-      const gateKey = getDemoGateKey(gate.id);
+      const gateKey = gate.gateKey || (isEncryptedEnvelope(gate.secretPayload) ? getSandboxDemoKey(gate.id) : null);
       decryptPayload(gate.secretPayload, gateKey)
         .then((text) => {
-          setDecryptedText(text);
+          setDecryptedText(
+            text === null
+              ? '🔒 Decryption key not available in this session. Keys are released only after a verified on-chain unlockGate transaction.'
+              : text
+          );
           setIsDecrypting(false);
         })
         .catch(() => {

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Lock, Sparkles, AlertCircle, ShieldAlert } from 'lucide-react';
 import { ARC_MAINNET } from '../config';
-import { encryptPayload } from '../lib/crypto';
+import { encryptPayload, generateGateKey } from '../lib/crypto';
 
 export default function CreateGateModal({ isOpen, onClose, onCreateGate, isCreating, isConnected, isArcNetwork }) {
   const [title, setTitle] = useState('');
@@ -53,13 +53,16 @@ export default function CreateGateModal({ isOpen, onClose, onCreateGate, isCreat
     }
 
     try {
-      // Encrypt the confidential payload on the client before storing or deploying
-      const encryptedPayload = await encryptPayload(secretPayload.trim());
+      // Encrypt with a fresh random 256-bit gate key. The key is escrowed
+      // server-side and released only against a verified on-chain unlock.
+      const gateKey = generateGateKey();
+      const encryptedPayload = await encryptPayload(secretPayload.trim(), gateKey);
 
       onCreateGate({
         title: title.trim(),
         description: description.trim(),
         secretPayload: encryptedPayload,
+        gateKey,
         priceUsdc: priceUsdc.trim()
       });
     } catch (err) {

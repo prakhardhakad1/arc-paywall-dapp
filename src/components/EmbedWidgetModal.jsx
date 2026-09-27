@@ -111,11 +111,11 @@ export default function PremiumArticle() {
         {/* Gate Summary Badge */}
         <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-800 mb-5 flex items-center justify-between">
           <div className="truncate pr-4">
-            <span className="text-[10px] uppercase font-mono text-slate-500 block">Gate #{gate.id}</span>
+            <span className="text-[10px] uppercase font-mono text-slate-400 block">Gate #{gate.id}</span>
             <span className="text-xs font-semibold text-white truncate block">{gate.title}</span>
           </div>
           <div className="text-right flex-shrink-0">
-            <span className="text-[10px] uppercase font-mono text-slate-500 block">Unlock Fee</span>
+            <span className="text-[10px] uppercase font-mono text-slate-400 block">Unlock Fee</span>
             <span className="text-xs font-bold text-cyan-400">{gate.priceUsdcFormatted} USDC</span>
           </div>
         </div>

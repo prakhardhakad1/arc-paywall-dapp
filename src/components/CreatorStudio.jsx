@@ -203,7 +203,7 @@ export default function CreatorStudio({
           </div>
           <div className="mt-2 flex items-center space-x-2 text-[11px]">
             <span className="text-emerald-400 font-medium">● {activeGatesCount} Active</span>
-            <span className="text-slate-500">|</span>
+            <span className="text-slate-400">|</span>
             <span className="text-amber-400 font-medium">● {pausedGatesCount} Paused</span>
           </div>
         </div>

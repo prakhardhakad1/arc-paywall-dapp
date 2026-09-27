@@ -13,8 +13,10 @@ export const ARC_MAINNET = {
 };
 
 // CONTRACT DEPLOYMENT ADDRESS ON ARC MAINNET
-// After deploying via Remix or scripts/deploy.mjs, replace this address with your deployed contract address!
-export const ARC_PAYWALL_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000000';
+// Set VITE_ARC_PAYWALL_ADDRESS at build time (see scripts/deploy.mjs output).
+// When unset, the app runs in honest Standby mode and refuses live unlocks.
+export const ARC_PAYWALL_CONTRACT_ADDRESS =
+  import.meta.env?.VITE_ARC_PAYWALL_ADDRESS || '0x0000000000000000000000000000000000000000';
 
 // Smart Contract ABI (Strictly synchronized with contracts/ArcPaywall.sol)
 export const ARC_PAYWALL_ABI = [
@@ -58,7 +60,7 @@ export const DEMO_GATES = [
     createdAt: 1789948800, // Fixed historical launch date
     active: true,
     isUnlocked: false,
-    secretPayload: 'enc:aes-gcm:eyJhbGciOiJBRVMtR0NNLTI1NiIsInNhbHQiOiJNcDZNcWZ5NmthSm0vR2tQV3hQeTVBPT0iLCJpdiI6IlN6NVFvUmJjZWxRclBHbEIiLCJkYXRhIjoiK0grRyt5T3c5WnVZWGd5enF2aStFamJmVklqa3VER25mZnhyNW5JRU9GNWJ5ZDErbE9DVHJvTTJVWGRzREV0dTJUTFJRV0MzdHNBdHowQ3dVQmNLRUNJU1BMU0ovaWNRN2hkc2dJZkdQUXZUdWpaeGlmb2pXenJDLzIyOU5GYU01VGpKVWZzR2ZsSzBTbzUrIn0=',
+    secretPayload: 'enc:aes-gcm:eyJhbGciOiJBRVMtR0NNLTI1NiIsIml2IjoiazRpSU1XMzlWSS9ONEVmciIsImRhdGEiOiJqQjF5QVBHR3l3TFlBVGZURVU3d2g2ZEZqcFQxeExSNXVTRitiY1IwY3BvNXkxdkhLQlRUd09ScUhvRE1JdGxlVld5aFA4Vjk3NkZPbW9kRUV6NXZqV0xnaXIwRWtBRHg5SWRiVWJOMjByb3Boc0pvY3NZRlRXdGkyVWFVTkJBdlQ5UkFPN0FvdXl1ekc3WnkifQ==',
   },
   {
     id: 2,
@@ -71,7 +73,7 @@ export const DEMO_GATES = [
     createdAt: 1789776000, // Fixed historical launch date
     active: true,
     isUnlocked: false,
-    secretPayload: 'enc:aes-gcm:eyJhbGciOiJBRVMtR0NNLTI1NiIsInNhbHQiOiJ4enNWbG9lRlU5N2hvVm9XYTZmemFBPT0iLCJpdiI6IjUydXhYTW5pZ3ZyWllZdzkiLCJkYXRhIjoiREJLSlg3ZnJ4WXRST1NCcmc0Mis3dFpxa3lIc3ZCRGtxMkRIZG94NUlFVVJrK3lxVzJmTFo0MXB5dHNMM3pQR3NaRk9NazY0RXF3aTJnTT0ifQ==',
+    secretPayload: 'enc:aes-gcm:eyJhbGciOiJBRVMtR0NNLTI1NiIsIml2IjoiVlNWaGdQbUNoWXN1N3IwQiIsImRhdGEiOiJidWgxcmc1ZG9md1dlVjgrS0Y2ajEyK1RkNUtCUzhMMEwxMk5tb3I0ZFppWDltaVhFMWlIU1ZRMzcyNGVXTnRHN21SOEtoYnEydVg2RlgwPSJ9',
   },
   {
     id: 3,
@@ -84,6 +86,6 @@ export const DEMO_GATES = [
     createdAt: 1789603200, // Fixed historical launch date
     active: true,
     isUnlocked: false,
-    secretPayload: 'enc:aes-gcm:eyJhbGciOiJBRVMtR0NNLTI1NiIsInNhbHQiOiJFeFh0SXE2U04vYm9sVERKNTFJU3ZnPT0iLCJpdiI6Ikw4NitzdHhkSkE4UXlOYlAiLCJkYXRhIjoiNDJDMVkrTTRlK0ZMbGhiRFYvS3hsKzdsN09hLytYcFNNaGNNUitMeGJhbFNWdmRDU1N3bGRuTFFYR2FqZkdJSFNydVIzUy96L2I2OGl1U0VSUkh1a25YSmFmVjZnRFJMWjZuMW9saTNmVHJ2TWlWcUZwbERiVlppajJ6bWkyc29ETkViR2R2Zk1OTHljM1RETXFFeFhoaXY5SE1nZjFsbm5UQS8ifQ==',
+    secretPayload: 'enc:aes-gcm:eyJhbGciOiJBRVMtR0NNLTI1NiIsIml2IjoiV2U0VGsvVEM5aUc5VXJ0MSIsImRhdGEiOiJVREZkQnFtWjlOSzdnZm1CQi9oZzFaQkNDVGIvRVZ4SThhVkFReElyNGxZN3UzNDBOZDFzc0RveTgvTDVxaXVSNDJsU3IvMDJVc3ZiT0IvRGVlQ3gxanNZcEpJVVNvOEo5ekhKQnBHU2l5ZG53M2pDV2MzdWNSY0xNcFNwNlRXUkZNWEM5MnlMVWl5VSthM2VFYVJySEgxU0xQeGRMYkxqUHFUSzc3YjJHUm9EMjhzU3VtSzVQRFNpVFlQeDJBPT0ifQ==',
   },
 ];

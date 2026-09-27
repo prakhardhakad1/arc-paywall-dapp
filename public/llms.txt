@@ -1,0 +1,13 @@
+# ArcGate
+
+> Decentralized USDC micro-paywalls and creator tipping on Circle's Arc Mainnet (Chain ID 5042).
+
+- [Live app](https://arc-paywall-dapp.vercel.app/)
+- [Source repository](https://github.com/prakhardhakad1/arc-paywall-dapp)
+- [ArcPaywall contract source](https://github.com/prakhardhakad1/arc-paywall-dapp/blob/main/contracts/ArcPaywall.sol)
+- [Arc block explorer](https://explorer.arc.io)
+
+## Machine-to-machine access
+
+- `GET /api/gate/{id}` returns paywall metadata with `X-Arc-*` headers and HTTP 402 until paid.
+- `POST /api/unlock` with `{ gate_id, tx_hash, buyer }` verifies the on-chain `unlockGate` receipt via Arc RPC and releases the gate decryption key. Unverified requests are rejected.

@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import { ethers } from 'ethers';
 import { ARC_MAINNET, ARC_PAYWALL_ABI, DEMO_GATES } from './src/config.js';
 import { getContentType } from './src/lib/contentDetector.js';
-import { encryptPayload, decryptPayload, isEncryptedEnvelope } from './src/lib/crypto.js';
+import { encryptPayload, decryptPayload, isEncryptedEnvelope, generateGateKey } from './src/lib/crypto.js';
 import { formatGateId, formatReceiptId, formatLicenseId } from './src/lib/typedIds.js';
 import { isAudioMuted, setAudioMuted } from './src/lib/audio.js';
 
@@ -216,7 +216,7 @@ console.log('  ✓ My Library correctly filters exactly the user unlocked assets
 // -------------------------------------------------------------------
 console.log('\nTest 9: Verifying AES-256-GCM Cryptographic Authenticity...');
 const sampleSecret = 'https://github.com/circle-fintech/arc-defi-alpha-core?auth=sec_token_99';
-const testKey = 'arcgate_secret_key_unit_test';
+const testKey = generateGateKey();
 
 const encryptedEnvelope = await encryptPayload(sampleSecret, testKey);
 assert.ok(encryptedEnvelope.startsWith('enc:aes-gcm:'), 'Ciphertext envelope must start with enc:aes-gcm:');
@@ -227,8 +227,8 @@ const decryptedText = await decryptPayload(encryptedEnvelope, testKey);
 assert.strictEqual(decryptedText, sampleSecret, 'Decrypted text must match original plaintext');
 
 // Verify decryption failure on invalid key
-const failedResult = await decryptPayload(encryptedEnvelope, 'wrong_key_should_fail');
-assert.ok(failedResult.includes('Could not decrypt'), 'Decryption with wrong key must return authentication error');
+const failedResult = await decryptPayload(encryptedEnvelope, generateGateKey());
+assert.strictEqual(failedResult, null, 'Decryption with wrong key must return null (GCM auth failure)');
 console.log('  ✓ AES-256-GCM authenticated encryption, decryption, and tamper rejection verified.');
 
 // -------------------------------------------------------------------

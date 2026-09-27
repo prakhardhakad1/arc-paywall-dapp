@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import { getContentType } from '../lib/contentDetector';
 import { formatGateId, formatCreatorHandle } from '../lib/typedIds';
-import { decryptPayload, getDemoGateKey } from '../lib/crypto';
+import { decryptPayload, getSandboxDemoKey, isEncryptedEnvelope } from '../lib/crypto';
 
 export default function SingleGateView({
   gate,
@@ -44,10 +44,14 @@ export default function SingleGateView({
   useEffect(() => {
     if (isUnlocked && gate?.secretPayload) {
       setIsDecrypting(true);
-      const gateKey = getDemoGateKey(gate.id);
+      const gateKey = gate.gateKey || (isEncryptedEnvelope(gate.secretPayload) ? getSandboxDemoKey(gate.id) : null);
       decryptPayload(gate.secretPayload, gateKey)
         .then((text) => {
-          setDecryptedText(text);
+          setDecryptedText(
+            text === null
+              ? '🔒 Decryption key not available in this session. Keys are released only after a verified on-chain unlockGate transaction.'
+              : text
+          );
           setIsDecrypting(false);
         })
         .catch(() => {
@@ -210,12 +214,12 @@ export default function SingleGateView({
         {/* Creator and Metadata Strip */}
         <div className="flex flex-wrap items-center gap-4 py-3 px-4 rounded-2xl bg-slate-950/60 border border-slate-800/80 text-xs text-slate-400 mb-6">
           <div className="flex items-center space-x-1.5">
-            <User className="w-4 h-4 text-slate-500" />
+            <User className="w-4 h-4 text-slate-400" />
             <span className="font-mono text-cyan-400 font-semibold">{formatCreatorHandle(gate.creator)}</span>
-            <span className="font-mono text-slate-500 text-[11px] hidden sm:inline">({truncateAddress(gate.creator)})</span>
+            <span className="font-mono text-slate-400 text-[11px] hidden sm:inline">({truncateAddress(gate.creator)})</span>
           </div>
           <div className="flex items-center space-x-1.5">
-            <Clock className="w-4 h-4 text-slate-500" />
+            <Clock className="w-4 h-4 text-slate-400" />
             <span>Published {formatDate(gate.createdAt)}</span>
           </div>
           <div className="flex items-center space-x-1.5 text-cyan-400">

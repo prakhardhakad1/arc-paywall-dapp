@@ -23,9 +23,13 @@ export default function StatsBento({ stats, isConnected, isArcNetwork, isDemoMod
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-950/80 text-amber-300 border border-amber-500/30">
                   🧪 Sandbox Telemetry
                 </span>
-              ) : (
+              ) : stats?.source === 'chain' ? (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-500/30">
-                  ⚡ Arc Mainnet
+                  ⚡ Arc Mainnet • On-Chain
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-800/80 text-slate-300 border border-slate-600/40">
+                  Standby Preview
                 </span>
               )}
             </div>

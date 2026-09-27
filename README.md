@@ -18,13 +18,13 @@
 ### 2. 🔌 1-Line Embed Widget Generator (Developer Tooling)
 - Enables creators and developers to embed ArcGate paywalls directly into WordPress blogs, Notion docs, Substack, Medium, or custom React/Next.js dApps:
   - **HTML**: `<script src="https://arc-paywall-dapp.vercel.app/widget.js" data-gate-id="1"></script>`
-  - **Iframe**: `<iframe src="https://arc-paywall-dapp.vercel.app?gate=1" ...></iframe>`
-  - **React Component**: `<ArcGatePaywall gateId={1} price="0.10 USDC" />`
+  - **Iframe**: `<iframe src="https://arc-paywall-dapp.vercel.app/embed/1" ...></iframe>`
+  - The widget and embed routes are the only supported integrations; there is no npm/React package.
 
 ### 3. 🤖 Real HTTP 402 Agentic Commerce API (Vercel Serverless)
 - Authentic machine-to-machine micropayments powered by Vercel serverless functions:
   - `GET /api/gate/:id` $\to$ Returns `HTTP 402 Payment Required` with `X-Arc-Paywall-Protocol`, `X-Arc-Chain-Id: 5042`, and `X-Arc-Price-USDC` headers when locked.
-  - `POST /api/unlock` $\to$ Verifies on-chain settlement and transaction hash before releasing decrypted content.
+  - `POST /api/unlock` $\to$ Verifies the `unlockGate` receipt against Arc RPC (status, contract target, function selector, gate id, buyer address) and only then releases the gate decryption key from server-side escrow. Unverified or fabricated hashes are rejected with 402/403.
   - Interactive agent terminal directly on the homepage lets visitors and judges test real-time agentic micropayments in 0.42s!
 
 ### 4. 📊 Arc vs. Ethereum Visual Benchmark
@@ -36,9 +36,19 @@
   - **$0.10 Payments**: 100% Viable vs. Economically Broken
 
 ### 5. 🔒 Client-Side AES-256-GCM Cryptographic Paywalls
-- **Cryptographic Honesty**: Secrets are encrypted client-side in the browser via native Web Crypto API (`crypto.subtle`) using AES-256-GCM and PBKDF2 (100,000 rounds) before ever touching storage or smart contracts.
-- **Zero Plaintext Secrets**: Calldata and storage contain only ciphertext envelopes (`enc:aes-gcm:...`).
-- **Zero Credential Exposure**: Hardened client-side architecture with zero leaked API keys or database tokens in the public bundle.
+- **Cryptographic Honesty**: Secrets are encrypted client-side in the browser via the native Web Crypto API (`crypto.subtle`) using AES-256-GCM with a fresh random 256-bit key per gate.
+- **Proof-Gated Key Release**: Gate keys are escrowed server-side (`POST /api/keys`, verified against the `createGate` receipt) and released to buyers only by `POST /api/unlock` after verifying their `unlockGate` receipt. No master key or passphrase exists anywhere in the client bundle.
+- **Zero Plaintext Secrets**: Calldata, storage, and the public bundle contain only ciphertext envelopes (`enc:aes-gcm:...`).
+
+---
+
+## 🚀 Deployment & Configuration
+
+1. **Deploy the contract**: `node scripts/deploy.mjs` with `PRIVATE_KEY` set (funds required for Arc gas). Record the printed address.
+2. **Initialize Turso**: `node scripts/init-turso.mjs` with server-side `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN` (creates `gates`, `unlocks`, `tips`, `gate_keys`).
+3. **Build the frontend** with:
+   - `VITE_ARC_PAYWALL_ADDRESS` — deployed contract address (without it the app runs in honest Standby mode and refuses live unlocks).
+4. **Set serverless env vars** on Vercel: `ARC_PAYWALL_ADDRESS`, `ARC_RPC_URL` (optional), `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`. Key escrow endpoints fail closed (503) if these are missing.
 
 ---
 

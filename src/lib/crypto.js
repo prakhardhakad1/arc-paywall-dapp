@@ -1,9 +1,11 @@
 /**
  * Client-Side Cryptographic Module for ArcGate
- * Implements genuine AES-256-GCM authenticated encryption & decryption
- * using the native Web Crypto API (crypto.subtle).
- * 
- * Guarantees zero plaintext secrets in storage or on-chain calldata.
+ * AES-256-GCM authenticated encryption via the native Web Crypto API.
+ *
+ * Key model: every gate gets a random 256-bit raw key generated at creation time.
+ * The key is escrowed server-side (see api/keys.js) and released only after the
+ * server verifies a real on-chain unlockGate receipt (see api/unlock.js).
+ * No passphrase or master key exists in the client bundle.
  */
 
 const getCrypto = () => {
@@ -17,7 +19,7 @@ const getCrypto = () => {
 };
 
 const bufferToBase64 = (buf) => {
-  const bytes = new Uint8Array(buf);
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
   let binary = '';
   for (let i = 0; i < bytes.byteLength; i++) {
     binary += String.fromCharCode(bytes[i]);
@@ -35,125 +37,92 @@ const base64ToBuffer = (str) => {
   for (let i = 0; i < binary.length; i++) {
     bytes[i] = binary.charCodeAt(i);
   }
-  return bytes.buffer;
+  return bytes;
 };
 
 /**
- * Derive a 256-bit AES-GCM CryptoKey from a passphrase and salt using PBKDF2
+ * Generate a fresh random 256-bit gate key, returned as base64.
  */
-async function deriveKey(passphrase, saltBuffer) {
+export function generateGateKey() {
   const cryptoObj = getCrypto();
-  const enc = new TextEncoder();
-  const keyMaterial = await cryptoObj.subtle.importKey(
-    'raw',
-    enc.encode(passphrase),
-    'PBKDF2',
-    false,
-    ['deriveKey']
-  );
+  return bufferToBase64(cryptoObj.getRandomValues(new Uint8Array(32)));
+}
 
-  return await cryptoObj.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt: saltBuffer,
-      iterations: 100000,
-      hash: 'SHA-256',
-    },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
+/**
+ * Deterministic key used ONLY for watermarked Sandbox demo content.
+ * Not used for any live/mainnet gate.
+ */
+export function getSandboxDemoKey(gateId) {
+  const seed = `arcgate-sandbox-demo-only-${gateId}`;
+  const bytes = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) {
+    bytes[i] = seed.charCodeAt(i % seed.length) ^ (i * 7);
+  }
+  return bufferToBase64(bytes);
+}
+
+async function importRawKey(rawKeyB64) {
+  const cryptoObj = getCrypto();
+  return cryptoObj.subtle.importKey(
+    'raw',
+    base64ToBuffer(rawKeyB64),
+    { name: 'AES-GCM' },
     false,
     ['encrypt', 'decrypt']
   );
 }
 
 /**
- * Encrypt a plaintext secret payload into an AES-256-GCM envelope
- * @param {string} plaintext The content to protect
- * @param {string} secretKey Passphrase or derived gate unlock key
- * @returns {Promise<string>} Envelope string prefixed with "enc:aes-gcm:"
+ * Encrypt plaintext with a raw base64 gate key into an "enc:aes-gcm:" envelope.
  */
-export async function encryptPayload(plaintext, secretKey = 'arcgate_default_master_key_2026') {
+export async function encryptPayload(plaintext, rawKeyB64) {
   if (!plaintext) return '';
+  if (!rawKeyB64) throw new Error('A gate key is required to encrypt (no default key exists)');
   const cryptoObj = getCrypto();
-  const enc = new TextEncoder();
-  const encodedData = enc.encode(plaintext);
-
-  const salt = cryptoObj.getRandomValues(new Uint8Array(16));
   const iv = cryptoObj.getRandomValues(new Uint8Array(12));
-
-  const key = await deriveKey(secretKey, salt.buffer);
+  const key = await importRawKey(rawKeyB64);
 
   const ciphertext = await cryptoObj.subtle.encrypt(
-    {
-      name: 'AES-GCM',
-      iv: iv,
-    },
+    { name: 'AES-GCM', iv },
     key,
-    encodedData
+    new TextEncoder().encode(plaintext)
   );
 
   const envelope = {
     alg: 'AES-GCM-256',
-    salt: bufferToBase64(salt.buffer),
-    iv: bufferToBase64(iv.buffer),
+    iv: bufferToBase64(iv),
     data: bufferToBase64(ciphertext),
   };
-
   return `enc:aes-gcm:${bufferToBase64(new TextEncoder().encode(JSON.stringify(envelope)))}`;
 }
 
 /**
- * Decrypt an AES-256-GCM envelope
- * @param {string} envelopeStr The encrypted string starting with "enc:aes-gcm:"
- * @param {string} secretKey Passphrase used during encryption
- * @returns {Promise<string>} Decrypted plaintext
+ * Decrypt an "enc:aes-gcm:" envelope with a raw base64 gate key.
+ * Returns null on authentication failure instead of leaking partial data.
  */
-export async function decryptPayload(envelopeStr, secretKey = 'arcgate_default_master_key_2026') {
+export async function decryptPayload(envelopeStr, rawKeyB64) {
   if (!envelopeStr) return '';
-  if (!envelopeStr.startsWith('enc:aes-gcm:')) {
-    // If not encrypted, return as-is for backward compatibility
-    return envelopeStr;
-  }
+  if (!envelopeStr.startsWith('enc:aes-gcm:')) return envelopeStr;
+  if (!rawKeyB64) return null;
 
   try {
     const cryptoObj = getCrypto();
-    const rawB64 = envelopeStr.replace('enc:aes-gcm:', '');
-    const jsonStr = new TextDecoder().decode(base64ToBuffer(rawB64));
-    const envelope = JSON.parse(jsonStr);
-
-    const salt = base64ToBuffer(envelope.salt);
-    const iv = base64ToBuffer(envelope.iv);
-    const data = base64ToBuffer(envelope.data);
-
-    const key = await deriveKey(secretKey, salt);
-
-    const decrypted = await cryptoObj.subtle.decrypt(
-      {
-        name: 'AES-GCM',
-        iv: new Uint8Array(iv),
-      },
-      key,
-      data
+    const envelope = JSON.parse(
+      new TextDecoder().decode(base64ToBuffer(envelopeStr.replace('enc:aes-gcm:', '')))
     );
-
+    const key = await importRawKey(rawKeyB64);
+    const decrypted = await cryptoObj.subtle.decrypt(
+      { name: 'AES-GCM', iv: base64ToBuffer(envelope.iv) },
+      key,
+      base64ToBuffer(envelope.data)
+    );
     return new TextDecoder().decode(decrypted);
   } catch (err) {
     console.warn('Decryption authentication failed:', err?.message || err);
-    return '🔒 Error: Could not decrypt content with provided license verification.';
+    return null;
   }
 }
 
-/**
- * Standard deterministic key derivation for demo gates
- */
-export function getDemoGateKey(gateId) {
-  return `arcgate_gate_${gateId}_circle_arc_mainnet_secret_seed`;
-}
-
-/**
- * Check if a string is an AES-GCM encrypted envelope
- */
 export function isEncryptedEnvelope(str) {
   return typeof str === 'string' && str.startsWith('enc:aes-gcm:');
 }
-

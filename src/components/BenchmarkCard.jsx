@@ -58,6 +58,9 @@ export default function BenchmarkCard() {
           <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl">
             See how Circle's native USDC gas model eliminates the multi-step approval tax and enables real-world micro-monetization.
           </p>
+          <p className="text-[11px] text-slate-400 mt-2 max-w-2xl">
+            Illustrative comparison — figures are indicative industry estimates, not measurements taken on-chain by ArcGate.
+          </p>
         </div>
       </div>
 
@@ -97,7 +100,7 @@ export default function BenchmarkCard() {
         <div className="p-5 sm:p-6 rounded-2xl bg-slate-900/40 border border-slate-800/80 shadow-inner">
           <div className="flex items-center justify-between mb-4">
             <h4 className="text-base font-bold text-slate-400">Legacy Ethereum / Standard L2s</h4>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-slate-500 bg-slate-800 px-2 py-0.5 rounded-full">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 bg-slate-800 px-2 py-0.5 rounded-full">
               High Friction
             </span>
           </div>
@@ -109,7 +112,7 @@ export default function BenchmarkCard() {
                   <X className="w-3.5 h-3.5" />
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-500 block font-mono uppercase">
+                  <span className="text-[10px] text-slate-400 block font-mono uppercase">
                     {item.metric}
                   </span>
                   <span className="font-medium text-slate-400">{item.eth}</span>

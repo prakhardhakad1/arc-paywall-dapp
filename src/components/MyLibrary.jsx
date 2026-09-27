@@ -22,8 +22,14 @@ export default function MyLibrary({
   onViewSecret,
   onNavigateExplore,
 }) {
-  // Filter all gates unlocked by this user
-  const unlockedGates = gates.filter((gate) => isGateUnlocked(gate));
+  // Filter all gates unlocked by this user. The creator's own paused gates are
+  // excluded here (they live in Creator Studio) so dead listings never clutter
+  // the library; anything actually purchased by this wallet always stays.
+  const unlockedGates = gates.filter((gate) => {
+    if (!isGateUnlocked(gate)) return false;
+    const isOwnGate = account && gate.creator && gate.creator.toLowerCase() === account.toLowerCase();
+    return !(isOwnGate && gate.active === false);
+  });
 
   const truncateAddress = (addr) => {
     if (!addr) return '';

@@ -626,16 +626,17 @@ export default function App() {
     if (isDemoMode || !isContractConfigured) return;
 
     try {
-      let provider;
-      if (window.ethereum && account && chainId === ARC_MAINNET.chainId) {
-        provider = new ethers.BrowserProvider(window.ethereum);
-      } else {
-        provider = new ethers.JsonRpcProvider(ARC_MAINNET.rpcUrl);
-      }
+      const connected = Boolean(window.ethereum && account && chainId === ARC_MAINNET.chainId);
+      const provider = connected
+        ? new ethers.BrowserProvider(window.ethereum)
+        : new ethers.JsonRpcProvider(ARC_MAINNET.rpcUrl);
+      // Read as the connected wallet: without a caller address the contract sees
+      // msg.sender = 0x0 and withholds every payload, even from its owner.
+      const runner = connected ? await provider.getSigner() : provider;
       const contract = new ethers.Contract(
         ARC_PAYWALL_CONTRACT_ADDRESS,
         ARC_PAYWALL_ABI,
-        provider
+        runner
       );
 
       const recentGates = await contract.getRecentGates(0, 20);
@@ -991,16 +992,31 @@ export default function App() {
     }
   };
 
-  const handleViewSecret = (gate) => {
+  const handleViewSecret = async (gate) => {
     if (!isGateUnlocked(gate)) {
       showToast('This gate is paywalled! Connect wallet & pay on Arc Mainnet to unlock.', 'error');
       return;
     }
-    setSelectedUnlockedGate(
-      gate && !gate.gateKey && liveGateKeys[gate.id]
-        ? { ...gate, gateKey: liveGateKeys[gate.id] }
-        : gate
-    );
+
+    let viewGate = gate && !gate.gateKey && liveGateKeys[gate.id]
+      ? { ...gate, gateKey: liveGateKeys[gate.id] }
+      : gate;
+
+    // List fetches can carry an empty payload; re-read it as the connected wallet
+    // so participants always see the ciphertext they are entitled to.
+    if (viewGate && !viewGate.secretPayload && window.ethereum && account && chainId === ARC_MAINNET.chainId) {
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const contract = new ethers.Contract(ARC_PAYWALL_CONTRACT_ADDRESS, ARC_PAYWALL_ABI, signer);
+        const fresh = await contract.getGate(viewGate.id);
+        viewGate = { ...viewGate, secretPayload: fresh.secretPayload, isUnlockedOnChain: fresh.isUnlocked };
+      } catch (e) {
+        console.warn('Gate re-read before reveal failed:', e);
+      }
+    }
+
+    setSelectedUnlockedGate(viewGate);
   };
 
   const handleSendTip = async ({ recipient, amountUsdc, message }) => {

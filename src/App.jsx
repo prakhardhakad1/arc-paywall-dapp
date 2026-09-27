@@ -266,7 +266,12 @@ export default function App() {
   const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   // Total Unlocked Count for Library Badge
-  const unlockedCount = currentGates.filter((g) => isGateUnlocked(g)).length;
+  // Mirrors the My Library filter so the navbar badge never overcounts.
+  const unlockedCount = currentGates.filter((g) => {
+    if (!isGateUnlocked(g)) return false;
+    const isOwnGate = account && g.creator && g.creator.toLowerCase() === account.toLowerCase();
+    return !(isOwnGate && g.active === false);
+  }).length;
 
   // Deep-Link & Clean URL Routing Effect (/gate/:id, /g/:id, /embed/:id, ?gate=:id, #gate-:id)
   useEffect(() => {
@@ -1013,6 +1018,35 @@ export default function App() {
         viewGate = { ...viewGate, secretPayload: fresh.secretPayload, isUnlockedOnChain: fresh.isUnlocked };
       } catch (e) {
         console.warn('Gate re-read before reveal failed:', e);
+      }
+    }
+
+    // A creator holds no unlock receipt for their own gate, so prove ownership
+    // with a signature and fetch the escrowed key directly (no gas).
+    const isCreator = Boolean(account && viewGate?.creator && viewGate.creator.toLowerCase() === account.toLowerCase());
+    if (viewGate && !viewGate.gateKey && isCreator && window.ethereum && chainId === ARC_MAINNET.chainId) {
+      try {
+        const provider = new ethers.BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
+        const signature = await signer.signMessage(`ArcGate creator key access for gate #${viewGate.id}`);
+        const res = await fetch('/api/creator-key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gate_id: viewGate.id, address: account, signature }),
+        });
+        const json = await res.json();
+        if (res.ok && json.key) {
+          viewGate = { ...viewGate, gateKey: json.key };
+          const nextKeys = { ...liveGateKeys, [viewGate.id]: json.key };
+          setLiveGateKeys(nextKeys);
+          try {
+            localStorage.setItem(STORAGE_LIVE_KEYS_KEY, JSON.stringify(nextKeys));
+          } catch (e) {}
+        } else {
+          viewGate = { ...viewGate, keyError: json.error || 'Creator key unavailable.' };
+        }
+      } catch (e) {
+        console.warn('Creator key fetch failed:', e);
       }
     }
 

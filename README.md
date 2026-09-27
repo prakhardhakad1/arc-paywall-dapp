@@ -9,6 +9,23 @@
 
 ---
 
+## ✅ Verified Live on Arc Mainnet
+
+| Item | Value |
+|---|---|
+| **Contract** | [`0x59a2f8f63cf6a2F918d8299a4B999341A1fC9620`](https://explorer.arc.io/address/0x59a2f8f63cf6a2F918d8299a4B999341A1fC9620) |
+| **Deployment tx** | [`0xe2cb14ff91b9b64a22605b8c3c9bfd7242810f205885f605812239caeba1172d`](https://explorer.arc.io/tx/0xe2cb14ff91b9b64a22605b8c3c9bfd7242810f205885f605812239caeba1172d) |
+| **Chain** | Arc Mainnet, Chain ID 5042, native USDC gas |
+| **Live app** | [arc-paywall-dapp.vercel.app](https://arc-paywall-dapp.vercel.app) |
+| **First paid unlock** | _pending — tx hash added after the recorded demo_ |
+| **60s demo video** | _pending — Loom link added after the recorded demo_ |
+
+**How to verify yourself:** open the contract on ArcScan, call `getProtocolStats()` (reads live gates, unlocks, tips, volume) and `owner()`; then click **Unlock** on any gate in the live app and follow the receipt's ArcScan link to the settlement transaction.
+
+**Security architecture:** payloads are AES-256-GCM encrypted client-side with a per-gate random 256-bit key; the key is escrowed server-side and released only by `/api/unlock` after it verifies the buyer's `unlockGate` receipt against Arc RPC (status, contract target, function selector, gate id, and buyer address). Escrow splits are 99% creator / 1% protocol with a pull-withdrawal fallback, and the contract enforces `nonReentrant` + strict checks-effects-interactions.
+
+---
+
 ## ⚡ 5 Standout Features (Engineered to Win)
 
 ### 1. ⚡ Instant Interactive Demo Sandbox (Zero Friction for Judges)

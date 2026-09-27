@@ -18,8 +18,7 @@
 ### 2. 🔌 1-Line Embed Widget Generator (Developer Tooling)
 - Enables creators and developers to embed ArcGate paywalls directly into WordPress blogs, Notion docs, Substack, Medium, or custom React/Next.js dApps:
   - **HTML**: `<script src="https://arc-paywall-dapp.vercel.app/widget.js" data-gate-id="1"></script>`
-  - **Iframe**: `<iframe src="https://arc-paywall-dapp.vercel.app/embed/1" ...></iframe>`
-  - The widget and embed routes are the only supported integrations; there is no npm/React package.
+  - The 1-line widget is the only supported integration. Iframe and npm/React embeds are intentionally not offered: the app ships `frame-ancestors 'none'` to protect wallet-signing pages from clickjacking, and no React package exists.
 
 ### 3. 🤖 Real HTTP 402 Agentic Commerce API (Vercel Serverless)
 - Authentic machine-to-machine micropayments powered by Vercel serverless functions:
@@ -171,7 +170,7 @@ ArcGate leverages Circle's newly launched **Arc Mainnet**, where **USDC is the n
 
 ### Key Features:
 - **Zero-Friction Sandbox Mode**: Interactive demo sandbox for judges and users without MetaMask or Arc funds.
-- **1-Line Embed Widget Generator**: HTML, Iframe, and React embed snippets for creators to monetize anywhere.
+- **1-Line Embed Widget Generator**: a single `<script>` tag for creators to monetize anywhere (iframing is intentionally disabled by CSP for clickjacking protection).
 - **Autonomous AI Agent Micropayments**: HTTP 402 Payment Required integration for agentic commerce.
 - **Arc vs. Ethereum Visual Benchmark**: Proof of Arc's superior stablecoin-native architecture.
 - **99% Direct Creator Revenue**: Immediate on-chain distribution upon unlock.

@@ -40,6 +40,7 @@ export const ARC_PAYWALL_ABI = [
   'event GateUnlocked(uint256 indexed id, address indexed buyer, address indexed creator, uint256 amountPaid, uint256 timestamp)',
   'event GateStatusChanged(uint256 indexed id, bool active)',
   'event GatePriceUpdated(uint256 indexed id, uint256 newPriceUsdcWei)',
+  'event EscrowCredited(address indexed account, uint256 amount)',
   'event CreatorTipped(address indexed creator, address indexed tipper, uint256 amount, string message, uint256 timestamp)',
   'event CreatorPayoutWithdrawn(address indexed creator, uint256 amount)',
   'event ProtocolFeesWithdrawn(address indexed owner, uint256 amount)',

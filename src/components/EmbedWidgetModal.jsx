@@ -29,28 +29,6 @@ export default function EmbedWidgetModal({ isOpen, onClose, gate }) {
   async>
 </script>`,
 
-    iframe: `<!-- ArcGate Iframe Embed (WordPress / Notion / Substack) -->
-<iframe 
-  src="${currentHost}/embed/${gate.id}" 
-  width="100%" 
-  height="300" 
-  frameborder="0" 
-  style="border-radius: 16px; border: 1px solid rgba(56, 189, 248, 0.2);"
-  allow="clipboard-write">
-</iframe>`,
-
-    react: `// React / Next.js Component Embed
-import { ArcGatePaywall } from '@arcgate/react';
-
-export default function PremiumArticle() {
-  return (
-    <ArcGatePaywall 
-      gateId={${gate.id}} 
-      price="${gate.priceUsdcFormatted} USDC"
-      onUnlock={(secret) => console.log('Secret decrypted:', secret)}
-    />
-  );
-}`
   };
 
   const handleCopy = async () => {
@@ -131,26 +109,6 @@ export default function PremiumArticle() {
             }`}
           >
             1-Line &lt;script&gt;
-          </button>
-          <button
-            onClick={() => setActiveTab('iframe')}
-            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
-              activeTab === 'iframe'
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            &lt;iframe&gt; (Notion/Blogs)
-          </button>
-          <button
-            onClick={() => setActiveTab('react')}
-            className={`flex-1 py-2 text-xs font-semibold rounded-lg transition-all ${
-              activeTab === 'react'
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            React / Next.js
           </button>
         </div>
 

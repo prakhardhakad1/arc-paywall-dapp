@@ -12,14 +12,21 @@ const escapeHtml = (s) =>
 /**
  * Serves the SPA shell for /gate/:id with per-gate Open Graph tags so shared
  * gate links render rich preview cards in Slack, X, Discord, and Telegram.
+ * Flat route (no path params) reached via the /gate/:id rewrite in vercel.json.
  */
 export default async function handler(request) {
   const url = new URL(request.url);
-  const id = (url.pathname.match(/\/gate\/(\d+)/i) || [])[1] || '1';
+  const id = url.searchParams.get('id') || '1';
   const base = `${url.protocol}//${url.host}`;
 
   const upstream = await fetch(`${base}/index.html`);
   let html = await upstream.text();
+
+  // Crawlers honor the FIRST title/og occurrence, so strip the static ones
+  // before injecting the per-gate set.
+  html = html
+    .replace(/<title>[\s\S]*?<\/title>/i, '')
+    .replace(/<meta[^>]*(?:property|name)="(?:og:|twitter:)[^>]*>/gi, '');
 
   const title = DEMO_TITLES[id]
     ? `${DEMO_TITLES[id]} — ArcGate Paywall`
@@ -33,8 +40,12 @@ export default async function handler(request) {
     `<meta property="og:description" content="${escapeHtml(description)}" />` +
     `<meta property="og:url" content="${base}/gate/${id}" />` +
     `<meta property="og:type" content="article" />` +
-    `<meta property="og:image" content="${base}/favicon.svg" />` +
-    `<meta name="twitter:card" content="summary" />`;
+    `<meta property="og:site_name" content="ArcGate" />` +
+    `<meta property="og:image" content="${base}/og-cover.png" />` +
+    `<meta name="twitter:card" content="summary_large_image" />` +
+    `<meta name="twitter:title" content="${escapeHtml(title)}" />` +
+    `<meta name="twitter:description" content="${escapeHtml(description)}" />` +
+    `<meta name="twitter:image" content="${base}/og-cover.png" />`;
 
   html = html.replace('</head>', `${metas}</head>`);
 

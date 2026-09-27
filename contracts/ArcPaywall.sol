@@ -92,6 +92,7 @@ contract ArcPaywall {
 
     event GateStatusChanged(uint256 indexed id, bool active);
     event GatePriceUpdated(uint256 indexed id, uint256 newPriceUsdcWei);
+    event EscrowCredited(address indexed account, uint256 amount);
 
     event CreatorTipped(
         address indexed creator,
@@ -144,6 +145,7 @@ contract ArcPaywall {
     ) external returns (uint256) {
         require(bytes(title).length > 0, "Title required");
         require(bytes(secretPayload).length > 0, "Secret content required");
+        require(priceUsdcWei > 0, "Price must be > 0");
 
         gateCount++;
         uint256 newGateId = gateCount;
@@ -223,12 +225,17 @@ contract ArcPaywall {
         (bool sentCreator, ) = gate.creator.call{value: creatorAmount}("");
         if (!sentCreator) {
             pendingBalances[gate.creator] += creatorAmount;
+            emit EscrowCredited(gate.creator, creatorAmount);
         }
 
-        // Excess refund executed last
+        // Excess refund executed last; a failed refund credits escrow instead of
+        // reverting, so buyers whose receive() reverts can still unlock and pull later.
         if (excess > 0) {
             (bool refunded, ) = msg.sender.call{value: excess}("");
-            require(refunded, "Excess refund failed");
+            if (!refunded) {
+                pendingBalances[msg.sender] += excess;
+                emit EscrowCredited(msg.sender, excess);
+            }
         }
     }
 
@@ -257,6 +264,8 @@ contract ArcPaywall {
         require(creator != address(0), "Invalid recipient");
         require(msg.value > 0, "Tip amount must be > 0");
 
+        // Intentional product decision: tips carry a 0% protocol fee
+        // (zero middleman take-rate); only gate unlocks accrue the 1% fee.
         totalTipsCount++;
         totalVolumeUsdc += msg.value;
 
@@ -265,6 +274,7 @@ contract ArcPaywall {
         (bool sent, ) = creator.call{value: msg.value}("");
         if (!sent) {
             pendingBalances[creator] += msg.value;
+            emit EscrowCredited(creator, msg.value);
         }
     }
 
@@ -303,6 +313,10 @@ contract ArcPaywall {
     function getRecentGates(uint256 offset, uint256 limit) external view returns (GateView[] memory) {
         if (gateCount == 0 || offset >= gateCount) {
             return new GateView[](0);
+        }
+
+        if (limit > 100) {
+            limit = 100;
         }
 
         uint256 total = gateCount - offset;

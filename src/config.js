@@ -13,10 +13,10 @@ export const ARC_MAINNET = {
 };
 
 // CONTRACT DEPLOYMENT ADDRESS ON ARC MAINNET
-// Set VITE_ARC_PAYWALL_ADDRESS at build time (see scripts/deploy.mjs output).
-// When unset, the app runs in honest Standby mode and refuses live unlocks.
+// Deployed 2026-09-27: tx 0xe2cb14ff91b9b64a22605b8c3c9bfd7242810f205885f605812239caeba1172d
+// VITE_ARC_PAYWALL_ADDRESS overrides this fallback at build time.
 export const ARC_PAYWALL_CONTRACT_ADDRESS =
-  import.meta.env?.VITE_ARC_PAYWALL_ADDRESS || '0x0000000000000000000000000000000000000000';
+  import.meta.env?.VITE_ARC_PAYWALL_ADDRESS || '0x59a2f8f63cf6a2F918d8299a4B999341A1fC9620';
 
 // Smart Contract ABI (Strictly synchronized with contracts/ArcPaywall.sol)
 export const ARC_PAYWALL_ABI = [

@@ -2,6 +2,7 @@ import {
   SELECTORS,
   verifyTx,
   parseGateIdArg,
+  getGatePrice,
   getKey,
   sendError,
 } from './_verify.js';
@@ -22,7 +23,7 @@ export default async function handler(req, res) {
     const { gate_id: gateId, buyer } = req.body || {};
     const txHash = req.body?.tx_hash || req.headers['x-arc-tx-hash'];
 
-    const { from, input } = await verifyTx(txHash, SELECTORS.unlockGate);
+    const { from, input, value } = await verifyTx(txHash, SELECTORS.unlockGate);
 
     const unlockedGateId = parseGateIdArg(input);
     if (Number(gateId) !== unlockedGateId) {
@@ -35,6 +36,16 @@ export default async function handler(req, res) {
       return res.status(403).json({
         success: false,
         error: 'Transaction sender does not match the requesting buyer wallet',
+      });
+    }
+
+    // Defence in depth: the contract already enforces msg.value >= price, but we
+    // re-check the paid amount against the on-chain price before releasing a key.
+    const price = await getGatePrice(unlockedGateId);
+    if (BigInt(value || 0) < price) {
+      return res.status(403).json({
+        success: false,
+        error: 'Payment did not cover the gate price',
       });
     }
 

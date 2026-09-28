@@ -1,5 +1,5 @@
 import { createClient } from '@libsql/client';
-import { Interface, id, toUtf8Bytes } from 'ethers';
+import { Interface, Contract, JsonRpcProvider, id, toUtf8Bytes } from 'ethers';
 
 export const RPC_URL = process.env.ARC_RPC_URL || 'https://rpc.mainnet.arc.io';
 export const CONTRACT_ADDRESS = (process.env.ARC_PAYWALL_ADDRESS || '').toLowerCase();
@@ -68,7 +68,24 @@ export async function verifyTx(txHash, selector) {
     throw err;
   }
 
-  return { from: (tx.from || '').toLowerCase(), input: tx.input, receipt };
+  return { from: (tx.from || '').toLowerCase(), input: tx.input, value: tx.value, receipt };
+}
+
+const GATE_PRICE_ABI = [
+  'function getGate(uint256 gateId) view returns (tuple(uint256 id, address creator, string title, string description, uint256 priceUsdcWei, uint256 unlockCount, uint256 createdAt, bool active, bool isUnlocked, string secretPayload))',
+];
+
+/** On-chain price of a gate, used to confirm the payment covered the fee. */
+export async function getGatePrice(gateId) {
+  if (!CONTRACT_ADDRESS) {
+    const err = new Error('Key escrow not configured on server');
+    err.status = 503;
+    throw err;
+  }
+  const provider = new JsonRpcProvider(RPC_URL);
+  const contract = new Contract(CONTRACT_ADDRESS, GATE_PRICE_ABI, provider);
+  const gate = await contract.getGate(gateId);
+  return BigInt(gate.priceUsdcWei);
 }
 
 export function parseGateIdArg(input) {

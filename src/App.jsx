@@ -198,6 +198,7 @@ export default function App() {
       return {
         volumeUsdc: protocolStats.volumeUsdc,
         totalGates: protocolStats.totalGates.toString(),
+        activeGates: currentGates.filter((g) => g.active !== false).length.toString(),
         totalUnlocks: protocolStats.totalUnlocks.toString(),
         source: 'chain',
       };
@@ -213,6 +214,7 @@ export default function App() {
     return {
       volumeUsdc,
       totalGates,
+      activeGates: currentGates.filter((g) => g.active !== false).length.toString(),
       totalUnlocks: totalUnlocks.toString(),
       source: 'preview',
     };

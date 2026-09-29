@@ -4,6 +4,7 @@ import { Coins, Lock, Unlock, Zap, Shield, TrendingUp, Sparkles } from 'lucide-r
 export default function StatsBento({ stats, isConnected, isArcNetwork, isDemoMode }) {
   const volume = stats?.volumeUsdc || '0.00';
   const totalGates = stats?.totalGates || '0';
+  const activeGates = stats?.activeGates ?? totalGates;
   const totalUnlocks = stats?.totalUnlocks || '0';
 
   return (
@@ -107,7 +108,7 @@ export default function StatsBento({ stats, isConnected, isArcNetwork, isDemoMod
 
           <div className="flex items-baseline space-x-2">
             <span className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              {totalGates}
+              {activeGates}
             </span>
             <span className="text-xs text-slate-300">Active</span>
           </div>
@@ -120,7 +121,7 @@ export default function StatsBento({ stats, isConnected, isArcNetwork, isDemoMod
           </div>
           <div className="flex items-center space-x-1.5 text-[11px] text-slate-300">
             <Shield className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />
-            <span>On-chain access state</span>
+            <span>{totalGates} on-chain in total (incl. paused)</span>
           </div>
         </div>
       </div>

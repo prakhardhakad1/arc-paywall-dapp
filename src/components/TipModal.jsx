@@ -123,7 +123,7 @@ export default function TipModal({ isOpen, onClose, onSendTip, isTipping, initia
             <div className="relative">
               <input
                 type="number"
-                step="0.05"
+                step="0.01"
                 min="0.01"
                 placeholder="0.50"
                 value={amountUsdc}

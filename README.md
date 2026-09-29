@@ -22,7 +22,19 @@
 
 **How to verify yourself:** open the contract on ArcScan, call `getProtocolStats()` (reads live gates, unlocks, tips, volume) and `owner()`; then click **Unlock** on any gate in the live app and follow the receipt's ArcScan link to the settlement transaction.
 
-**Security architecture:** payloads are AES-256-GCM encrypted client-side with a per-gate random 256-bit key; the key is escrowed server-side and released only by `/api/unlock` after it verifies the buyer's `unlockGate` receipt against Arc RPC (status, contract target, function selector, gate id, and buyer address). Escrow splits are 99% creator / 1% protocol with a pull-withdrawal fallback, and the contract enforces `nonReentrant` + strict checks-effects-interactions.
+**Security architecture:** payloads are AES-256-GCM encrypted client-side with a per-gate random 256-bit key; the key is escrowed server-side and released only by `/api/unlock` after it verifies the buyer's `unlockGate` receipt against Arc RPC (status, contract target, function selector, gate id, buyer address, and paid amount). Escrow splits are 99% creator / 1% protocol with a pull-withdrawal fallback, and the contract enforces `nonReentrant` + strict checks-effects-interactions.
+
+**Verify the source yourself:** follow [`VERIFY.md`](VERIFY.md) — the exact compiler settings and a ready-to-upload Standard JSON input are included, so the deployed bytecode can be matched against `contracts/ArcPaywall.sol` on the explorer.
+
+### What is on-chain vs off-chain (precise)
+
+| Fact | Where it lives |
+|---|---|
+| Gates (title, description, encrypted payload, price, active flag) | **On-chain**, `ArcPaywall` on Arc Mainnet |
+| Ownership / access (`hasUnlocked`), unlock counts, settled volume, protocol fees | **On-chain**, read live via `getProtocolStats()` / `getRecentGates()` |
+| Payments and the 99/1 split | **On-chain**, native USDC transfers in the same transaction |
+| Decryption keys | **Off-chain escrow** (Turso), released only against a verified on-chain receipt |
+| Page-view analytics and sandbox state | **Browser-local only** (explicitly not presented as protocol data) |
 
 ---
 
@@ -171,7 +183,7 @@
 
 ## 📝 Pre-Written DoraHacks Arc Microgrants Submission Copy
 
-Use this exact text when filling out your DoraHacks submission form at [dorahacks.io/hackathon/arc-microgrants/detail](https://dorahacks.io/hackathon/arc-microgrants/detail):
+Use this text when filling out your DoraHacks submission form at [dorahacks.io/hackathon/arc-microgrants/detail](https://dorahacks.io/hackathon/arc-microgrants/detail):
 
 ### Project Name:
 `ArcGate — Native USDC Micro-Paywall & Tipping Protocol`
@@ -179,18 +191,31 @@ Use this exact text when filling out your DoraHacks submission form at [dorahack
 ### Tagline:
 `Decoupled creator micro-monetization & agentic micropayments powered by Circle's Arc Mainnet native USDC gas.`
 
+### Proof of deployment (paste this block as-is):
+
+```
+Live app:        https://arc-paywall-dapp.vercel.app
+Contract:        0x59a2f8f63cf6a2F918d8299a4B999341A1fC9620
+Explorer:        https://explorer.arc.io/address/0x59a2f8f63cf6a2F918d8299a4B999341A1fC9620
+Deploy tx:       https://explorer.arc.io/tx/0xe2cb14ff91b9b64a22605b8c3c9bfd7242810f205885f605812239caeba1172d
+Chain:           Arc Mainnet, chain ID 5042, native USDC gas
+Reproducible:    contracts/standard-json-input.json + VERIFY.md (source verification inputs)
+First sale tx:   <paste the unlock transaction hash from your receipt>
+Demo video:      <paste your 60-second Loom link>
+```
+
 ### Problem Statement:
-Existing subscription models ($10-$30/month) force users into all-or-nothing commitments for single pieces of content. Furthermore, on traditional EVM networks, sending micro-payments in USDC requires paying gas in ETH and performing 2-step ERC-20 approvals (`approve` then `transferFrom`), making sub-$1 transactions economically unviable.
+Existing subscription models ($10-$30/month) force users into all-or-nothing commitments for single pieces of content. On traditional EVM networks, sending micro-payments in USDC requires paying gas in ETH and performing 2-step ERC-20 approvals (`approve` then `transferFrom`), making sub-$1 transactions economically unviable.
 
 ### Solution:
-ArcGate leverages Circle's newly launched **Arc Mainnet**, where **USDC is the native gas asset**. By utilizing native transfers (`msg.value`), ArcGate enables 1-click instant unlock of digital assets (research alpha, secret links, private Discord/Telegram invites, code repositories) for as low as $0.05 USDC with zero token approvals and sub-second settlement.
+ArcGate leverages Circle's **Arc Mainnet**, where **USDC is the native gas asset**. By using native transfers (`msg.value`), ArcGate enables 1-click instant unlock of digital assets (research alpha, secret links, private Discord/Telegram invites, code repositories) from $0.05 USDC with zero token approvals and sub-second settlement. Content is AES-256-GCM encrypted client-side; the decryption key is released only after a server verifies the buyer's unlock transaction on Arc RPC (status, contract, function, gate id, sender and paid amount).
 
 ### Key Features:
-- **Zero-Friction Sandbox Mode**: Interactive demo sandbox for judges and users without MetaMask or Arc funds.
-- **1-Line Embed Widget Generator**: a single `<script>` tag for creators to monetize anywhere (iframing is intentionally disabled by CSP for clickjacking protection).
-- **Autonomous AI Agent Micropayments**: HTTP 402 Payment Required integration for agentic commerce.
-- **Arc vs. Ethereum Visual Benchmark**: Proof of Arc's superior stablecoin-native architecture.
-- **99% Direct Creator Revenue**: Immediate on-chain distribution upon unlock.
+- **Deployed and settling on Arc Mainnet**: 6 gates live, real native-USDC unlocks settled on-chain with the 99% / 1% split executed in the same transaction.
+- **Zero-Friction Sandbox Mode**: interactive demo for judges without MetaMask or Arc funds, clearly watermarked as simulation.
+- **1-Line Embed Widget**: a single `<script>` tag for creators to monetize anywhere (iframing is intentionally disabled by CSP for clickjacking protection).
+- **Agent-payable HTTP 402 endpoint**: `GET /api/gate/:id` returns 402 with the contract, function, exact price and claim instructions, so an autonomous agent can pay and claim without human help.
+- **99% Direct Creator Revenue**: paid instantly on unlock, with a pull-based escrow fallback for contract recipients.
 
 ---
 

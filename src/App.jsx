@@ -548,7 +548,7 @@ export default function App() {
     }
 
     if (!window.ethereum) {
-      showToast('MetaMask not detected. Enabling Sandbox Mode for you to test without a wallet!', 'info');
+      showToast('MetaMask not detected — install it from metamask.io, or use Sandbox Mode to explore everything with simulated funds. Sandbox is now active.', 'info');
       setIsDemoMode(true);
       return;
     }

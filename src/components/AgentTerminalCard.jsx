@@ -13,15 +13,17 @@ export default function AgentTerminalCard() {
     curl: `# 1. Agent queries paywalled endpoint (receives real HTTP 402 Payment Required)
 curl -i ${liveOrigin}/api/gate/1
 
-# 2. Agent signs 0.10 USDC tx on Arc and fetches with on-chain proof
+# 2. Agent pays 0.10 USDC on Arc, signs the key-claim (EIP-191), then fetches the key
+TX=0x9f81a7c3e5b128da401f89c62b48d591a3c7e4b2d8f019c5a6e38b47219d50
+SIG=$(cast wallet sign --private-key $AGENT_KEY "ArcGate unlock claim for gate #1 (tx $TX)")
 curl -X POST ${liveOrigin}/api/unlock \\
   -H "Content-Type: application/json" \\
-  -H "X-Arc-Tx-Hash: 0x9f81a7c3e5b128da401f89c62b48d591a3c7e4b2d8f019c5a6e38b47219d50" \\
-  -d '{"gate_id": 1, "agent_id": "agent-gpt4o-alpha"}'`,
+  -d '{"gate_id": 1, "tx_hash": "'$TX'", "signature": "'$SIG'"}'`,
 
     python: `# Python Agentic Commerce with Arc Sub-Second Finality
 import requests
 from web3 import Web3
+from eth_account.messages import encode_defunct
 
 # 1. Connect to Arc Mainnet (Chain 5042)
 w3 = Web3(Web3.HTTPProvider("https://rpc.mainnet.arc.io"))
@@ -32,11 +34,15 @@ tx_hash = paywall_contract.functions.unlockGate(1).transact({
     "from": agent_wallet.address
 })
 
-# 3. Retrieve decrypted payload
-res = requests.post("${liveOrigin}/api/unlock", headers={
-    "X-Arc-Tx-Hash": tx_hash.hex()
+# 3. Prove payer identity: EIP-191 signature over the key-claim message
+claim = f"ArcGate unlock claim for gate #1 (tx {tx_hash.hex().lower()})"
+sig = w3.eth.account.sign_message(encode_defunct(text=claim), private_key=agent_key).signature.hex()
+
+# 4. Retrieve decrypted payload
+res = requests.post("${liveOrigin}/api/unlock", json={
+    "gate_id": 1, "tx_hash": tx_hash.hex(), "signature": sig,
 })
-print("Agent Knowledge Unlocked:", res.json()["secret_payload"])`,
+print("Agent Knowledge Unlocked:", res.json()["key"])`,
 
     typescript: `// TypeScript / LangChain Tool Definition
 import { DynamicStructuredTool } from "@langchain/core/tools";
@@ -52,12 +58,16 @@ export const arcPaywallTool = new DynamicStructuredTool({
     // Instant settlement in <1s!
     const tx = await contract.unlockGate(gateId, { value: ethers.parseEther("0.10") });
     await tx.wait(1);
+    // Prove payer identity: EIP-191 signature over the key-claim message
+    const claim = "ArcGate unlock claim for gate #" + gateId + " (tx " + tx.hash.toLowerCase() + ")";
+    const signature = await wallet.signMessage(claim);
     const res = await fetch("${liveOrigin}/api/unlock", {
       method: "POST",
-      headers: { "X-Arc-Tx-Hash": tx.hash, "Content-Type": "application/json" },
-      body: JSON.stringify({ gate_id: gateId })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ gate_id: gateId, tx_hash: tx.hash, signature })
     });
-    return await res.json();
+    const data = await res.json();
+    return data.key;
   }
 });`
   };
@@ -83,6 +93,7 @@ export const arcPaywallTool = new DynamicStructuredTool({
       { text: '[AGENT] 🤖 Autonomous bot querying: /api/gate/1', delay: 200 },
       { text: '[SERVER] 🛑 HTTP 402 Payment Required: 0.10 USDC on Arc Mainnet (Chain 5042)', delay: 600, color: 'text-amber-400' },
       { text: '[AGENT] ⚡ Signing native USDC micro-payment (Tx: 0x9f81a7c3...3b42)', delay: 1100, color: 'text-cyan-300' },
+      { text: '[AGENT] ✍️ Signing key-claim (EIP-191) as the paying wallet', delay: 1500, color: 'text-cyan-300' },
       { text: '[NETWORK] 🚀 Arc Consensus confirmed in 0.42s (Sub-second finality)', delay: 1700, color: 'text-emerald-400' },
       { text: '[SERVER] ✅ HTTP 200 OK: Secret Alpha payload delivered to Agent memory!', delay: 2200, color: 'text-white font-bold' },
     ];

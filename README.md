@@ -17,8 +17,8 @@
 | **Deployment tx** | [`0xe2cb14ff91b9b64a22605b8c3c9bfd7242810f205885f605812239caeba1172d`](https://explorer.arc.io/tx/0xe2cb14ff91b9b64a22605b8c3c9bfd7242810f205885f605812239caeba1172d) |
 | **Chain** | Arc Mainnet, Chain ID 5042, native USDC gas |
 | **Live app** | [arc-paywall-dapp.vercel.app](https://arc-paywall-dapp.vercel.app) |
-| **First paid unlock** | _pending — tx hash added after the recorded demo_ |
-| **60s demo video** | _pending — Loom link added after the recorded demo_ |
+| **First paid unlock** | [`0x40209705…35803e0d`](https://explorer.arc.io/tx/0x402097058faf2179a60a98996d9e4fca44e8e5817d04cc87579a631a35803e0d) — 0.05 USDC paid unlock, verified on-chain |
+| **60s demo video** | Not recorded yet |
 
 **How to verify yourself:** open the contract on ArcScan, call `getProtocolStats()` (reads live gates, unlocks, tips, volume) and `owner()`; then click **Unlock** on any gate in the live app and follow the receipt's ArcScan link to the settlement transaction.
 
@@ -200,8 +200,7 @@ Explorer:        https://explorer.arc.io/address/0x59a2f8f63cf6a2F918d8299a4B999
 Deploy tx:       https://explorer.arc.io/tx/0xe2cb14ff91b9b64a22605b8c3c9bfd7242810f205885f605812239caeba1172d
 Chain:           Arc Mainnet, chain ID 5042, native USDC gas
 Reproducible:    contracts/standard-json-input.json + VERIFY.md (source verification inputs)
-First sale tx:   <paste the unlock transaction hash from your receipt>
-Demo video:      <paste your 60-second Loom link>
+First sale tx:   https://explorer.arc.io/tx/0x402097058faf2179a60a98996d9e4fca44e8e5817d04cc87579a631a35803e0d
 ```
 
 ### Problem Statement:

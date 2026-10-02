@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import {
   SELECTORS,
   verifyTx,
@@ -8,8 +9,19 @@ import {
 } from './_verify.js';
 
 /**
+ * EIP-191 claim message a payer must sign to collect a gate's decryption key.
+ * The signature is never published on-chain, so only the wallet that paid can
+ * present it — replaying someone else's public tx hash is not enough.
+ * Format must match the frontend signer in src/App.jsx and the agent snippets
+ * in src/components/AgentTerminalCard.jsx.
+ */
+export const unlockClaimMessage = (gateId, txHash) =>
+  `ArcGate unlock claim for gate #${gateId} (tx ${String(txHash).toLowerCase()})`;
+
+/**
  * Release a gate's decryption key ONLY after verifying a real on-chain
- * unlockGate transaction on Arc Mainnet. Never serves plaintext secrets.
+ * unlockGate transaction on Arc Mainnet AND an EIP-191 signature proving the
+ * requester controls the wallet that paid. Never serves plaintext secrets.
  */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -20,10 +32,32 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { gate_id: gateId, buyer } = req.body || {};
+    const { gate_id: gateId, buyer, signature } = req.body || {};
     const txHash = req.body?.tx_hash || req.headers['x-arc-tx-hash'];
 
+    if (!signature || typeof signature !== 'string') {
+      return res.status(401).json({
+        success: false,
+        error: 'Missing signature: the paying wallet must sign the unlock claim message (EIP-191).',
+      });
+    }
+
     const { from, input, value } = await verifyTx(txHash, SELECTORS.unlockGate);
+
+    // Payer identity: the claim signature must recover to the transaction sender.
+    // Without this, anyone could replay a public tx hash and read the key free.
+    let recovered;
+    try {
+      recovered = ethers.verifyMessage(unlockClaimMessage(gateId, txHash), signature);
+    } catch {
+      return res.status(403).json({ success: false, error: 'Invalid claim signature.' });
+    }
+    if (recovered.toLowerCase() !== String(from).toLowerCase()) {
+      return res.status(403).json({
+        success: false,
+        error: 'Claim signature does not match the paying wallet.',
+      });
+    }
 
     const unlockedGateId = parseGateIdArg(input);
     if (Number(gateId) !== unlockedGateId) {

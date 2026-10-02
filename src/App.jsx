@@ -787,25 +787,39 @@ export default function App() {
         console.warn('Post-unlock gate re-read failed:', e);
       }
 
-      // Release the decryption key only after server-side receipt verification
+      // Release the decryption key only after server-side receipt verification.
+      // The payer must prove identity with an EIP-191 signature over the claim
+      // message (format must match api/unlock.js); otherwise anyone could replay
+      // a public tx hash and read the key for free.
       let releasedKey = null;
       let keyError = null;
+      let claimSignature = null;
       try {
-        const keyRes = await fetch('/api/unlock', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ gate_id: gate.id, tx_hash: tx.hash, buyer: account }),
-        });
-        const keyJson = await keyRes.json();
-        if (keyRes.ok && keyJson.key) {
-          releasedKey = keyJson.key;
-        } else {
-          keyError = keyJson.error || 'Decryption key unavailable for this gate.';
-          console.warn('Key release unavailable:', keyError);
-        }
+        claimSignature = await signer.signMessage(
+          `ArcGate unlock claim for gate #${gate.id} (tx ${tx.hash.toLowerCase()})`
+        );
       } catch (e) {
-        keyError = 'Key escrow service unreachable. Please retry in a moment.';
-        console.warn('Key escrow service unreachable:', e);
+        keyError = 'Signature needed: please sign the key-claim message in your wallet to receive the decryption key.';
+        console.warn('Claim signature declined:', e);
+      }
+      if (!keyError) {
+        try {
+          const keyRes = await fetch('/api/unlock', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ gate_id: gate.id, tx_hash: tx.hash, buyer: account, signature: claimSignature }),
+          });
+          const keyJson = await keyRes.json();
+          if (keyRes.ok && keyJson.key) {
+            releasedKey = keyJson.key;
+          } else {
+            keyError = keyJson.error || 'Decryption key unavailable for this gate.';
+            console.warn('Key release unavailable:', keyError);
+          }
+        } catch (e) {
+          keyError = 'Key escrow service unreachable. Please retry in a moment.';
+          console.warn('Key escrow service unreachable:', e);
+        }
       }
       gate.gateKey = releasedKey;
       gate.keyError = keyError;

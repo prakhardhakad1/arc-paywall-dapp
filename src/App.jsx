@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import confetti from 'canvas-confetti';
 import { Sparkles, Zap, AlertTriangle, FlaskConical, AlertCircle, Info } from 'lucide-react';
@@ -40,6 +40,7 @@ const STORAGE_SANDBOX_UNLOCKS_KEY = 'arcgate_sandbox_unlocks_v4';
 const STORAGE_SANDBOX_COUNTS_KEY = 'arcgate_sandbox_counts_v4';
 const STORAGE_SANDBOX_GATES_KEY = 'arcgate_sandbox_gates_v4';
 const STORAGE_SANDBOX_EARNINGS_KEY = 'arcgate_sandbox_earnings_v1';
+const STORAGE_X402_SETTINGS_KEY = 'arcgate_x402_settings_v1';
 
 const STORAGE_LIVE_UNLOCKS_KEY = 'arcgate_live_unlocks_v5';
 const STORAGE_LIVE_COUNTS_KEY = 'arcgate_live_counts_v5';
@@ -169,6 +170,20 @@ export default function App() {
 
   const [liveContractGates, setLiveContractGates] = useState([]);
   const [protocolStats, setProtocolStats] = useState(null);
+  // Per-gate x402 agent-payment opt-in (server is source of truth for live
+  // gates; localStorage mirrors it + carries sandbox-only gates).
+  const [x402Settings, setX402Settings] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_X402_SETTINGS_KEY) || '{}');
+    } catch (e) {
+      return {};
+    }
+  });
+  // Ref mirror so async refreshes never clobber a newer toggle.
+  const x402SettingsRef = useRef(x402Settings);
+  useEffect(() => {
+    x402SettingsRef.current = x402Settings;
+  }, [x402Settings]);
   // Set when the startup on-chain read fails: the UI shows a retry banner
   // instead of silently showing stale/demo gates as if they were live.
   const [contractLoadError, setContractLoadError] = useState(null);
@@ -195,6 +210,16 @@ export default function App() {
       unlockCount: baseCount + additionalUnlocks,
     };
   });
+
+  // Pull the server-side x402 opt-in flags for live gates (once per gate set).
+  const liveGateIdsKey = isDemoMode
+    ? ''
+    : currentGates.map((g) => g.id).filter((n) => Number.isInteger(n)).sort((a, b) => a - b).join(',');
+  useEffect(() => {
+    if (!liveGateIdsKey) return;
+    refreshX402Settings(liveGateIdsKey.split(',').map(Number));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveGateIdsKey]);
 
   // Compute real protocol stats dynamically from currentGates (100% genuine data)
   const currentStats = React.useMemo(() => {
@@ -384,6 +409,74 @@ export default function App() {
       localStorage.setItem(STORAGE_LIVE_GATES_KEY, JSON.stringify(updatedLive));
     } catch (e) {}
     showToast('Gate status updated (Contract standby - saved locally)', 'info');
+  };
+
+  const persistX402Local = (next) => {
+    setX402Settings(next);
+    try {
+      localStorage.setItem(STORAGE_X402_SETTINGS_KEY, JSON.stringify(next));
+    } catch (e) {}
+  };
+
+  // Refresh x402 opt-in flags from the server for a set of gate ids.
+  const refreshX402Settings = async (gateIds) => {
+    const ids = [...new Set(gateIds)].filter((n) => Number.isInteger(n) && n > 0);
+    if (ids.length === 0) return;
+    try {
+      const res = await fetch(`/api/x402-settings?gate_ids=${ids.join(',')}`);
+      if (!res.ok) return;
+      const json = await res.json();
+      persistX402Local({ ...x402SettingsRef.current, ...(json.settings || {}) });
+    } catch (e) {
+      // Server settings unavailable: keep the local mirror.
+    }
+  };
+
+  // Per-gate x402 toggle. Opt-in, OFF by default — exactly what was asked:
+  // x402 agent payments are an option, never forced on.
+  const handleToggleX402 = async (gateId) => {
+    const nextEnabled = !x402Settings[String(gateId)];
+    return applyX402Setting(gateId, nextEnabled);
+  };
+
+  const applyX402Setting = async (gateId, nextEnabled) => {
+    if (isDemoMode) {
+      persistX402Local({ ...x402SettingsRef.current, [String(gateId)]: nextEnabled });
+      showToast(
+        nextEnabled ? 'x402 agent payments enabled (Sandbox)' : 'x402 agent payments disabled (Sandbox)',
+        'info'
+      );
+      return;
+    }
+    if (!window.ethereum || !account) {
+      showToast('Connect your wallet to change x402 settings.', 'error');
+      return;
+    }
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+      const message = `ArcGate x402: ${nextEnabled ? 'enable' : 'disable'} agent payments for gate #${gateId}`;
+      const signature = await signer.signMessage(message);
+      showToast('Saving x402 setting...', 'info');
+      const res = await fetch('/api/x402-settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gate_id: gateId, enabled: nextEnabled, signature }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        showToast(`x402 setting failed: ${json.error || 'unknown error'}`, 'error');
+        return;
+      }
+      persistX402Local({ ...x402SettingsRef.current, [String(gateId)]: nextEnabled });
+      showToast(
+        nextEnabled ? `x402 agent payments ENABLED for gate #${gateId}` : `x402 agent payments disabled for gate #${gateId}`,
+        'success'
+      );
+    } catch (err) {
+      console.error(err);
+      showToast(formatWeb3Error(err, 'Failed to update x402 setting'), 'error');
+    }
   };
 
   const handleWithdrawEarnings = async () => {
@@ -951,6 +1044,9 @@ export default function App() {
         try {
           localStorage.setItem(STORAGE_SANDBOX_GATES_KEY, JSON.stringify(updatedSandboxGates));
         } catch (e) {}
+        if (newGateData.x402Enabled) {
+          persistX402Local({ ...x402SettingsRef.current, [String(newId)]: true });
+        }
 
         setIsCreateOpen(false);
         showToast('Sandbox Gate created! Visible in Sandbox Mode.', 'success');
@@ -1013,6 +1109,14 @@ export default function App() {
             }
           } catch (e) {
             showToast('Gate published, but the key escrow service is unreachable.', 'error');
+          }
+        }
+        // Opt-in x402: enable agent payments for the new gate if requested.
+        if (created && newGateData.x402Enabled) {
+          try {
+            await applyX402Setting(Number(created.args.id), true);
+          } catch (e) {
+            console.error('x402 opt-in failed:', e);
           }
         }
         showToast('Paywalled Gate published successfully on Arc Mainnet!', 'success');
@@ -1422,6 +1526,8 @@ export default function App() {
             onOpenEmbedModal={(gate) => setSelectedEmbedGate(gate)}
             onViewSecret={handleViewSecret}
             onToggleGateActive={handleToggleGateActive}
+            onToggleX402={handleToggleX402}
+            x402Settings={x402Settings}
             onWithdrawEarnings={handleWithdrawEarnings}
             pendingEarnings={isDemoMode ? sandboxPendingEarnings : livePendingEarnings}
             isWithdrawing={isWithdrawing}

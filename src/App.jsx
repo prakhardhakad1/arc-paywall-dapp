@@ -39,7 +39,7 @@ const triggerConfetti = (opts = {}) => {
 const STORAGE_SANDBOX_UNLOCKS_KEY = 'arcgate_sandbox_unlocks_v4';
 const STORAGE_SANDBOX_COUNTS_KEY = 'arcgate_sandbox_counts_v4';
 const STORAGE_SANDBOX_GATES_KEY = 'arcgate_sandbox_gates_v4';
-const STORAGE_PENDING_EARNINGS_KEY = 'arcgate_pending_earnings_v4';
+const STORAGE_SANDBOX_EARNINGS_KEY = 'arcgate_sandbox_earnings_v1';
 
 const STORAGE_LIVE_UNLOCKS_KEY = 'arcgate_live_unlocks_v5';
 const STORAGE_LIVE_COUNTS_KEY = 'arcgate_live_counts_v5';
@@ -169,6 +169,10 @@ export default function App() {
 
   const [liveContractGates, setLiveContractGates] = useState([]);
   const [protocolStats, setProtocolStats] = useState(null);
+  // Set when the startup on-chain read fails: the UI shows a retry banner
+  // instead of silently showing stale/demo gates as if they were live.
+  const [contractLoadError, setContractLoadError] = useState(null);
+  const [isLoadingGates, setIsLoadingGates] = useState(false);
   const [liveGateKeys, setLiveGateKeys] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem(STORAGE_LIVE_KEYS_KEY) || '{}');
@@ -244,12 +248,13 @@ export default function App() {
     setSandboxUnlockedIds([]);
     setSandboxUnlockCounts({});
     setSandboxCustomGates([]);
-    setPendingEarnings('0.00');
+    setSandboxPendingEarnings('0.00');
     try {
       localStorage.removeItem(STORAGE_SANDBOX_UNLOCKS_KEY);
       localStorage.removeItem(STORAGE_SANDBOX_COUNTS_KEY);
       localStorage.removeItem(STORAGE_SANDBOX_GATES_KEY);
-      localStorage.removeItem(STORAGE_PENDING_EARNINGS_KEY);
+      localStorage.removeItem(STORAGE_SANDBOX_EARNINGS_KEY);
+      localStorage.removeItem('arcgate_pending_earnings_v4');
     } catch (e) {}
     showToast('Sandbox reset! All demo gates re-locked and all stats set to 0.', 'info');
   };
@@ -257,14 +262,20 @@ export default function App() {
   // Phase 1, 2, 3 States
   const [selectedSingleGate, setSelectedSingleGate] = useState(null);
   const [receiptData, setReceiptData] = useState(null);
-  const [pendingEarnings, setPendingEarnings] = useState(() => {
+  // Earnings are tracked separately per mode:
+  // - Sandbox: simulated balance in localStorage (demo funds, not real).
+  // - Live: read from the contract's pendingBalances(account) on-chain.
+  // They were previously one shared localStorage value, which mixed fake
+  // sandbox earnings with real escrow and was not scoped per wallet.
+  const [sandboxPendingEarnings, setSandboxPendingEarnings] = useState(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_PENDING_EARNINGS_KEY);
+      const saved = localStorage.getItem(STORAGE_SANDBOX_EARNINGS_KEY);
       return saved || '0.00';
     } catch (e) {
       return '0.00';
     }
   });
+  const [livePendingEarnings, setLivePendingEarnings] = useState('0.00');
   const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   // Total Unlocked Count for Library Badge
@@ -380,9 +391,9 @@ export default function App() {
     try {
       if (isDemoMode) {
         await new Promise((resolve) => setTimeout(resolve, 800));
-        setPendingEarnings('0.00');
+        setSandboxPendingEarnings('0.00');
         try {
-          localStorage.setItem(STORAGE_PENDING_EARNINGS_KEY, '0.00');
+          localStorage.setItem(STORAGE_SANDBOX_EARNINGS_KEY, '0.00');
         } catch (e) {}
         playUnlockChime();
         triggerConfetti({ particleCount: 80, spread: 70 });
@@ -410,10 +421,8 @@ export default function App() {
       const tx = await contract.withdrawCreatorEarnings();
       showToast(`Withdrawal broadcast: ${tx.hash.slice(0, 10)}...`, 'info');
       await tx.wait(1);
-      setPendingEarnings('0.00');
-      try {
-        localStorage.setItem(STORAGE_PENDING_EARNINGS_KEY, '0.00');
-      } catch (e) {}
+      // Re-read the real on-chain balance instead of assuming zero.
+      await fetchLivePendingEarnings();
 
       playUnlockChime();
       triggerConfetti({ particleCount: 80, spread: 70 });
@@ -632,6 +641,8 @@ export default function App() {
   const fetchContractGates = async () => {
     if (isDemoMode || !isContractConfigured) return;
 
+    setIsLoadingGates(true);
+    setContractLoadError(null);
     try {
       const connected = Boolean(window.ethereum && account && chainId === ARC_MAINNET.chainId);
       const provider = connected
@@ -678,12 +689,40 @@ export default function App() {
       }
     } catch (err) {
       console.warn('Contract data fetch fallback to demo:', err);
+      setContractLoadError('Could not reach Arc Mainnet. Your funds are safe — this is a read-only connection issue.');
+    } finally {
+      setIsLoadingGates(false);
+    }
+  };
+
+  const retryContractLoad = () => {
+    fetchContractGates();
+    fetchLivePendingEarnings();
+  };
+
+  // Live-mode claimable escrow, read from the contract — never from localStorage.
+  // pendingBalances is per-wallet on-chain, so this is always scoped correctly.
+  const fetchLivePendingEarnings = async () => {
+    if (isDemoMode || !isContractConfigured || !account) {
+      if (!account) setLivePendingEarnings('0.00');
+      return;
+    }
+    try {
+      const provider = new ethers.JsonRpcProvider(ARC_MAINNET.rpcUrl);
+      const contract = new ethers.Contract(ARC_PAYWALL_CONTRACT_ADDRESS, ARC_PAYWALL_ABI, provider);
+      const bal = await contract.pendingBalances(account);
+      setLivePendingEarnings(ethers.formatUnits(bal, 18));
+    } catch (e) {
+      console.warn('Could not read on-chain pending earnings:', e);
     }
   };
 
   useEffect(() => {
     if (!isDemoMode && isContractConfigured) {
       fetchContractGates();
+      fetchLivePendingEarnings();
+    } else if (isDemoMode) {
+      setLivePendingEarnings('0.00');
     }
   }, [account, chainId, isDemoMode, isContractConfigured]);
 
@@ -711,13 +750,13 @@ export default function App() {
       setSandboxUnlockCounts(newCounts);
 
       const addedEarnings = (gatePriceNum * 0.99).toFixed(2);
-      const newPending = (parseFloat(pendingEarnings || '0') + parseFloat(addedEarnings)).toFixed(2);
-      setPendingEarnings(newPending);
+      const newPending = (parseFloat(sandboxPendingEarnings || '0') + parseFloat(addedEarnings)).toFixed(2);
+      setSandboxPendingEarnings(newPending);
 
       try {
         localStorage.setItem(STORAGE_SANDBOX_UNLOCKS_KEY, JSON.stringify(newSandboxUnlocked));
         localStorage.setItem(STORAGE_SANDBOX_COUNTS_KEY, JSON.stringify(newCounts));
-        localStorage.setItem(STORAGE_PENDING_EARNINGS_KEY, newPending);
+        localStorage.setItem(STORAGE_SANDBOX_EARNINGS_KEY, newPending);
       } catch (e) {}
 
       dbService.recordUnlock(gate.id, '0xDemo...Arc', gate.priceUsdcFormatted, '0xArcSandboxSimulatedTx_77e9b10c89fa21d3');
@@ -848,14 +887,13 @@ export default function App() {
       setLiveUnlockedIds(newLiveUnlockedIds);
       setLiveUnlockCounts(newLiveCounts);
 
-      const addedEarnings = (gatePriceNum * 0.99).toFixed(2);
-      const newPending = (parseFloat(pendingEarnings || '0') + parseFloat(addedEarnings)).toFixed(2);
-      setPendingEarnings(newPending);
+      // Live earnings come from the contract, not local math: refresh the
+      // on-chain pendingBalances for this wallet after the unlock settles.
+      fetchLivePendingEarnings();
 
       try {
         localStorage.setItem(STORAGE_LIVE_UNLOCKS_KEY, JSON.stringify(newLiveUnlockedIds));
         localStorage.setItem(STORAGE_LIVE_COUNTS_KEY, JSON.stringify(newLiveCounts));
-        localStorage.setItem(STORAGE_PENDING_EARNINGS_KEY, newPending);
       } catch (e) {}
 
       dbService.recordUnlock(gate.id, account, gate.priceUsdcFormatted, broadcastTx.hash);
@@ -1312,6 +1350,28 @@ export default function App() {
               isArcNetwork={chainId === ARC_MAINNET.chainId}
             />
 
+            {/* Startup RPC failure: visible error with retry, not silent demo data */}
+            {contractLoadError && !isDemoMode && (
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="mb-6 mx-auto max-w-2xl rounded-2xl border border-amber-500/40 bg-amber-950/30 p-5 flex flex-col sm:flex-row items-center gap-4"
+              >
+                <div className="text-3xl" aria-hidden="true">📡</div>
+                <div className="flex-1 text-center sm:text-left">
+                  <p className="text-sm font-bold text-amber-200">Live data unavailable</p>
+                  <p className="text-xs text-amber-200/70 mt-1">{contractLoadError}</p>
+                </div>
+                <button
+                  onClick={retryContractLoad}
+                  disabled={isLoadingGates}
+                  className="px-5 py-2.5 rounded-xl bg-amber-700 hover:bg-amber-600 disabled:opacity-50 text-white text-xs font-bold transition-colors cursor-pointer min-h-[44px]"
+                >
+                  {isLoadingGates ? 'Retrying…' : 'Retry connection'}
+                </button>
+              </div>
+            )}
+
             {/* Explore Gates Grid with Category Filters & Search */}
             <ExploreGates
               gates={currentGates}
@@ -1363,7 +1423,7 @@ export default function App() {
             onViewSecret={handleViewSecret}
             onToggleGateActive={handleToggleGateActive}
             onWithdrawEarnings={handleWithdrawEarnings}
-            pendingEarnings={pendingEarnings}
+            pendingEarnings={isDemoMode ? sandboxPendingEarnings : livePendingEarnings}
             isWithdrawing={isWithdrawing}
           />
         )}

@@ -1,8 +1,10 @@
 import React from 'react';
 import { X, Award, Cpu, Rocket, Copy, Check } from 'lucide-react';
+import useFocusTrap from '../hooks/useFocusTrap';
 import { ARC_MAINNET } from '../config';
 
 export default function GuideModal({ isOpen, onClose }) {
+  const dialogRef = useFocusTrap();
   const [copiedRpc, setCopiedRpc] = React.useState(false);
 
   React.useEffect(() => {
@@ -31,6 +33,8 @@ export default function GuideModal({ isOpen, onClose }) {
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-labelledby="guide-modal-title"
@@ -42,7 +46,7 @@ export default function GuideModal({ isOpen, onClose }) {
         <button
           onClick={onClose}
           aria-label="Close modal"
-          className="absolute top-5 right-5 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer"
+          className="absolute top-5 right-5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>

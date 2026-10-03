@@ -14,9 +14,11 @@ import {
 } from 'lucide-react';
 import { ARC_MAINNET } from '../config';
 import { formatReceiptId, formatLicenseId } from '../lib/typedIds';
+import useFocusTrap from '../hooks/useFocusTrap';
 
 export default function ReceiptModal({ isOpen, onClose, receipt, onAccessContent }) {
   const [copied, setCopied] = useState(false);
+  const dialogRef = useFocusTrap();
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -54,6 +56,8 @@ export default function ReceiptModal({ isOpen, onClose, receipt, onAccessContent
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-labelledby="receipt-dialog-title"
@@ -68,7 +72,7 @@ export default function ReceiptModal({ isOpen, onClose, receipt, onAccessContent
         <button
           onClick={onClose}
           aria-label="Close transaction receipt"
-          className="absolute top-5 right-5 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer"
+          className="absolute top-5 right-5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>

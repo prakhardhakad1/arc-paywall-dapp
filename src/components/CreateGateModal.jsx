@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { X, Lock, Sparkles, AlertCircle, ShieldAlert } from 'lucide-react';
+import useFocusTrap from '../hooks/useFocusTrap';
 import { ARC_MAINNET } from '../config';
 import { encryptPayload, generateGateKey } from '../lib/crypto';
 
 export default function CreateGateModal({ isOpen, onClose, onCreateGate, isCreating, isConnected, isArcNetwork }) {
+  const dialogRef = useFocusTrap();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [secretPayload, setSecretPayload] = useState('');
@@ -73,6 +75,8 @@ export default function CreateGateModal({ isOpen, onClose, onCreateGate, isCreat
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-labelledby="create-gate-modal-title"
@@ -84,7 +88,7 @@ export default function CreateGateModal({ isOpen, onClose, onCreateGate, isCreat
         <button
           onClick={onClose}
           aria-label="Close modal"
-          className="absolute top-5 right-5 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer"
+          className="absolute top-5 right-5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>

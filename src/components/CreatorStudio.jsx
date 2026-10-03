@@ -227,7 +227,9 @@ export default function CreatorStudio({
               <span className="text-xs font-semibold text-emerald-400">USDC</span>
             </div>
             <p className="text-[10px] text-slate-400 mb-3">
-              Direct smart contract pull-over-push reserve
+              {isDemoMode
+                ? 'Sandbox demo balance — simulated funds, not real USDC'
+                : 'Live on-chain escrow (pendingBalances) — pull-over-push reserve'}
             </p>
           </div>
 

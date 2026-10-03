@@ -59,7 +59,7 @@
 - A high-impact side-by-side comparison card directly highlighting why Arc's native USDC gas asset is revolutionary:
   - **Checkout Flow**: 1-Click Native Transfer vs. 2-Step (Approve + Transfer)
   - **Gas Asset**: Native USDC (Zero Volatility) vs. Volatile ETH
-  - **Gas Fee**: ~$0.001 USDC vs. $3.50–$12.00+ ETH
+  - **Gas Fee**: ~$0.004 USDC (measured live on ArcScan) vs. $3.50–$12.00+ ETH
   - **Settlement**: < 1.0s Sub-Second vs. 30s+
   - **$0.10 Payments**: 100% Viable vs. Economically Broken
 
@@ -134,6 +134,31 @@
   - `getGate(uint256 gateId)`: Returns public metadata, revealing `secretPayload` only if the caller has unlocked the gate.
   - `getRecentGates(uint256 offset, uint256 limit)`: Fetches paginated gates for the frontend without external indexers.
   - `getProtocolStats()`: Returns real-time analytics (total volume, unlocks, tips, and gates created).
+
+## 🧪 Contract Tests (Foundry)
+
+`test/ArcPaywall.t.sol` — 14 tests, all passing (`forge test`):
+
+```
+Ran 14 tests for test/ArcPaywall.t.sol:ArcPaywallTest
+[PASS] test_CreateGate_EmitsGateCreated()
+[PASS] test_CreateGate_RevertsOnZeroPrice()
+[PASS] test_CreateGate_SetsIdPriceAndActive()
+[PASS] test_GetGate_HidesSecretUntilUnlock()
+[PASS] test_SetGatePrice_AccessControl()
+[PASS] test_TipCreator_ZeroProtocolFee()
+[PASS] test_Unlock_CreatorTransferFailureCreditsEscrow()
+[PASS] test_Unlock_RefundsExcessPayment()
+[PASS] test_Unlock_RevertsOnDoubleUnlock()
+[PASS] test_Unlock_RevertsOnUnderpayment()
+[PASS] test_Unlock_RevertsWhenPaused()
+[PASS] test_Unlock_Splits99ToCreator1ToProtocol()
+[PASS] test_WithdrawCreatorEarnings_PullsEscrow()
+[PASS] test_WithdrawProtocolFees_OnlyOwner()
+Suite result: ok. 14 passed; 0 failed; 0 skipped
+```
+
+Coverage highlights: the 99/1 payment split, underpayment/paused/double-unlock reverts, excess refunds, creator-escrow fallback when a payout transfer fails (no DoS), escrow pull-withdrawal isolated from protocol fee sweeps, 0% fee on tips, and secret-payload visibility rules.
 
 ---
 

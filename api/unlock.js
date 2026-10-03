@@ -4,10 +4,23 @@ import {
   verifyTx,
   parseGateIdArg,
   getGatePrice,
+  getGateMeta,
   getKey,
   recordClaim,
+  hasClaim,
   sendError,
 } from './_verify.js';
+import {
+  getX402Enabled,
+  parsePaymentSignature,
+  checkAuthorizationMatchesQuote,
+  facilitatorVerify,
+  facilitatorSettle,
+  facilitatorResultValid,
+  buildPaymentResponse,
+  weiToAtomicUnits,
+  X402_USDC_ASSET,
+} from './_x402.js';
 
 /**
  * EIP-191 claim message a payer must sign to collect a gate's decryption key.
@@ -27,10 +40,19 @@ export const unlockClaimMessage = (gateId, txHash) =>
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Arc-Tx-Hash');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Arc-Tx-Hash, PAYMENT-SIGNATURE');
+  res.setHeader('Access-Control-Expose-Headers', 'PAYMENT-RESPONSE');
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
+  // x402 agent-payment path: the agent paid via EIP-3009 (Arc native-USDC
+  // precompile) and presents the base64 PaymentPayload in PAYMENT-SIGNATURE.
+  // No separate EIP-191 claim signature is needed — the EIP-712 signature
+  // inside the authorization already proves the payer's identity.
+  if (req.headers['payment-signature']) {
+    return handleX402Unlock(req, res);
+  }
 
   try {
     const { gate_id: gateId, buyer, signature } = req.body || {};
@@ -102,6 +124,133 @@ export default async function handler(req, res) {
       key,
       ...(claim.replay ? { replay: true, note: 'This transaction was already claimed; returning the same key.' } : {}),
     });
+  } catch (err) {
+    return sendError(res, err);
+  }
+}
+/**
+ * x402 v2 agent-payment claim path.
+ *
+ * The agent already received HTTP 402 with a PAYMENT-REQUIRED header from
+ * /api/gate/:id, signed an EIP-3009 transferWithAuthorization against Arc's
+ * native-USDC precompile, and retried with the base64 PaymentPayload in the
+ * PAYMENT-SIGNATURE header. Flow here:
+ *
+ *   1. Gate must have x402 explicitly enabled (opt-in, OFF by default).
+ *   2. Parse + sanity-check the payload against the gate's on-chain quote.
+ *   3. Replay peek: an already-claimed nonce is served WITHOUT re-settling —
+ *      the buyer can never be charged twice for one authorization.
+ *   4. Facilitator /verify, then /settle (buyer -> creator directly).
+ *      Nothing is recorded before a successful settle, so a facilitator
+ *      outage can never turn into a free key — retries are always safe.
+ *   5. Record the claim, release the decryption key + PAYMENT-RESPONSE.
+ *
+ * Settlement bypasses the ArcPaywall contract (x402 pays payTo directly), so
+ * the 1% protocol fee does not apply to x402 sales. Failures never serve the
+ * key; the facilitator is the only party trusted for on-chain verification.
+ * Double-submits are safe: the EIP-3009 nonce cannot be spent twice on-chain,
+ * so a concurrent duplicate settle fails and the retry is served via the
+ * replay peek.
+ */
+async function handleX402Unlock(req, res) {
+  try {
+    const gateId = parseInt(req.body?.gate_id ?? req.query?.gate_id, 10);
+    if (!Number.isInteger(gateId) || gateId < 1) {
+      return res.status(400).json({ success: false, error: 'gate_id is required for x402 payment' });
+    }
+
+    if (!(await getX402Enabled(gateId))) {
+      return res.status(402).json({
+        success: false,
+        error: 'x402 agent payments are not enabled for this gate',
+      });
+    }
+
+    const payload = parsePaymentSignature(req.headers['payment-signature']);
+
+    let meta;
+    try {
+      meta = await getGateMeta(gateId);
+    } catch (e) {
+      return res.status(e.status || 503).json({ success: false, error: e.message });
+    }
+    if (!meta.active) {
+      return res.status(404).json({ success: false, error: 'Gate not found or paused' });
+    }
+
+    const amount = weiToAtomicUnits(meta.priceWei);
+    const { from, nonce } = checkAuthorizationMatchesQuote(payload, {
+      amount,
+      payTo: meta.creator,
+      asset: X402_USDC_ASSET,
+    });
+    const claimId = `x402:${nonce}`.toLowerCase();
+
+    const serveKey = async (replay, transaction) => {
+      const key = await getKey(gateId);
+      if (!key) {
+        return res.status(409).json({
+          success: false,
+          error: 'No escrowed key for this gate. The creator must escrow the gate key at creation time.',
+        });
+      }
+      res.setHeader(
+        'PAYMENT-RESPONSE',
+        buildPaymentResponse({ success: true, transaction, payer: from })
+      );
+      return res.status(200).json({
+        success: true,
+        gateId,
+        key,
+        x402: {
+          payer: from,
+          amount,
+          asset: X402_USDC_ASSET,
+          network: 'eip155:5042',
+          transaction,
+        },
+        ...(replay
+          ? { replay: true, note: 'This x402 authorization was already claimed; returning the same key without re-settling.' }
+          : {}),
+      });
+    };
+
+    // Replay peek first: never charge twice for one authorization.
+    if (await hasClaim(claimId)) {
+      return serveKey(true, null);
+    }
+
+    let verifyResult;
+    try {
+      verifyResult = await facilitatorVerify(payload);
+    } catch (e) {
+      return res.status(e.status || 502).json({ success: false, error: e.message });
+    }
+    if (!facilitatorResultValid(verifyResult)) {
+      // A spent nonce fails verification: one last peek in case a concurrent
+      // request settled+recorded between our first peek and now.
+      if (await hasClaim(claimId)) {
+        return serveKey(true, null);
+      }
+      return res.status(402).json({
+        success: false,
+        error: 'x402 payment verification failed: facilitator rejected the authorization (it may be invalid, expired, or already spent)',
+      });
+    }
+
+    let transaction = null;
+    try {
+      const settleResult = await facilitatorSettle(payload);
+      transaction = settleResult.transaction || settleResult.txHash || null;
+    } catch (e) {
+      return res.status(e.status || 502).json({
+        success: false,
+        error: `x402 settlement failed and was not submitted: ${e.message}. Safe to retry with the same authorization.`,
+      });
+    }
+
+    await recordClaim(claimId, gateId, from);
+    return serveKey(false, transaction);
   } catch (err) {
     return sendError(res, err);
   }

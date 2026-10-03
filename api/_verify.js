@@ -71,21 +71,53 @@ export async function verifyTx(txHash, selector) {
   return { from: (tx.from || '').toLowerCase(), input: tx.input, value: tx.value, receipt };
 }
 
-const GATE_PRICE_ABI = [
-  'function getGate(uint256 gateId) view returns (tuple(uint256 id, address creator, string title, string description, uint256 priceUsdcWei, uint256 unlockCount, uint256 createdAt, bool active, bool isUnlocked, string secretPayload))',
-];
-
 /** On-chain price of a gate, used to confirm the payment covered the fee. */
 export async function getGatePrice(gateId) {
+  const meta = await getGateMeta(gateId);
+  return BigInt(meta.priceWei);
+}
+
+/**
+ * Full gate metadata needed by the x402 agent-payment path: price, creator
+ * (x402 payTo) and active flag. Throws status 404/503 like the other readers.
+ */
+const GATE_META_ABI = [
+  'function getGate(uint256 gateId) external view returns (tuple(uint256 id, address creator, string title, string description, uint256 priceUsdcWei, uint256 unlockCount, uint256 createdAt, bool active, bool isUnlocked, string secretPayload))',
+];
+export async function getGateMeta(gateId) {
   if (!CONTRACT_ADDRESS) {
-    const err = new Error('Key escrow not configured on server');
+    const err = new Error('Contract address not configured on server');
     err.status = 503;
     throw err;
   }
   const provider = new JsonRpcProvider(RPC_URL);
-  const contract = new Contract(CONTRACT_ADDRESS, GATE_PRICE_ABI, provider);
-  const gate = await contract.getGate(gateId);
-  return BigInt(gate.priceUsdcWei);
+  const contract = new Contract(CONTRACT_ADDRESS, GATE_META_ABI, provider);
+  let gate;
+  try {
+    gate = await Promise.race([
+      contract.getGate(gateId),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('rpc timeout')), 8000)),
+    ]);
+  } catch (e) {
+    if (e && (e.code === 'CALL_EXCEPTION' || /revert/i.test(e.message || ''))) {
+      const err = new Error('Gate not found');
+      err.status = 404;
+      throw err;
+    }
+    const err = new Error('Could not read gate from Arc RPC');
+    err.status = 503;
+    throw err;
+  }
+  if (!gate || gate.id === undefined || Number(gate.id) === 0) {
+    const err = new Error('Gate not found');
+    err.status = 404;
+    throw err;
+  }
+  return {
+    priceWei: gate.priceUsdcWei.toString(),
+    creator: String(gate.creator).toLowerCase(),
+    active: Boolean(gate.active),
+  };
 }
 
 export function parseGateIdArg(input) {
@@ -166,4 +198,25 @@ export async function recordClaim(txHash, gateId, buyer) {
 export function sendError(res, err) {
   const status = err.status || 500;
   return res.status(status).json({ success: false, error: err.message || 'Internal error' });
+}
+
+/** Peek whether a claim id was already recorded (x402 nonce replay check). */
+export async function hasClaim(claimId) {
+  const db = getTurso();
+  if (!db) return false;
+  try {
+    await db.execute(`CREATE TABLE IF NOT EXISTS unlock_claims (
+      tx_hash TEXT PRIMARY KEY,
+      gate_id INTEGER NOT NULL,
+      buyer TEXT NOT NULL,
+      claimed_at INTEGER NOT NULL
+    )`);
+    const row = await db.execute({
+      sql: 'SELECT 1 FROM unlock_claims WHERE tx_hash = ? LIMIT 1',
+      args: [String(claimId).toLowerCase()],
+    });
+    return row.rows.length > 0;
+  } catch {
+    return false;
+  }
 }

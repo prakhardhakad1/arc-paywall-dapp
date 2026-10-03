@@ -55,6 +55,13 @@
   - `POST /api/unlock` $\to$ Verifies the `unlockGate` receipt against Arc RPC (status, contract target, function selector, gate id, buyer address) and only then releases the gate decryption key from server-side escrow. Unverified or fabricated hashes are rejected with 402/403.
   - Interactive agent terminal directly on the homepage lets visitors and judges test real-time agentic micropayments in 0.42s!
 
+### 3b. ⚡ x402 Agent Payments (opt-in per gate, OFF by default)
+- Creators can enable **x402 v2** (Coinbase's open agent-payment standard) on any gate — via the checkbox at creation or the toggle in Creator Studio. It is strictly opt-in, never forced on.
+- When enabled, `GET /api/gate/:id` additionally returns a standard x402 `PAYMENT-REQUIRED` header (base64 `PaymentRequired`: `exact` scheme on `eip155:5042`, amount in 6-decimal atomic units, asset = Arc's native-USDC precompile `0x3600…0000`, `payTo` = creator). Any x402-compatible AI agent can then pay programmatically with zero human clicks.
+- The agent retries `POST /api/unlock` with the base64 `PaymentPayload` in the `PAYMENT-SIGNATURE` header (EIP-3009 `transferWithAuthorization` signed against the precompile). The server sanity-checks the quote, verifies via the x402 facilitator (`X402_FACILITATOR_URL`, default Circle's hosted service), settles, then releases the key with a `PAYMENT-RESPONSE` header. Idempotency is keyed on the EIP-3009 nonce — a buyer can never be charged twice, and a facilitator outage can never mint a free key.
+- Only the gate creator can flip the toggle (EIP-191 signed `POST /api/x402-settings`).
+- Honest tradeoff: x402 settlement goes buyer → creator directly via the precompile, so the 1% protocol fee does not apply to x402 sales.
+
 ### 4. 📊 Arc vs. Ethereum Visual Benchmark
 - A high-impact side-by-side comparison card directly highlighting why Arc's native USDC gas asset is revolutionary:
   - **Checkout Flow**: 1-Click Native Transfer vs. 2-Step (Approve + Transfer)

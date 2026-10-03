@@ -77,4 +77,54 @@ test.describe('ArcGate smoke', () => {
     expect(body.error).toMatch(/signature/i);
     await api.dispose();
   });
+
+  test('live API: x402 is off by default — no PAYMENT-REQUIRED header on gate 4', async () => {
+    const api = await liveApi();
+    const res = await api.get(`${LIVE_API}/api/gate/4`);
+    expect(res.status()).toBe(402);
+    expect(res.headers()['payment-required']).toBeUndefined();
+    const body = await res.json();
+    expect(body.x402.enabled).toBe(false);
+    await api.dispose();
+  });
+
+  test('live API: x402 settings endpoint reports gate 4 as disabled', async () => {
+    const api = await liveApi();
+    const res = await api.get(`${LIVE_API}/api/x402-settings?gate_ids=4`);
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(body.settings['4']).toBe(false);
+    await api.dispose();
+  });
+
+  test('live API: x402 payment to a non-enabled gate fails closed with 402', async () => {
+    const api = await liveApi();
+    const fakePayload = Buffer.from(
+      JSON.stringify({
+        x402Version: 2,
+        scheme: 'exact',
+        network: 'eip155:5042',
+        payload: {
+          signature: '0x00',
+          authorization: {
+            from: '0x1111111111111111111111111111111111111111',
+            to: '0x2222222222222222222222222222222222222222',
+            value: '100000',
+            validAfter: '0',
+            validBefore: String(Math.floor(Date.now() / 1000) + 300),
+            nonce: '0xtest',
+          },
+        },
+      })
+    ).toString('base64');
+    const res = await api.post(`${LIVE_API}/api/unlock`, {
+      headers: { 'PAYMENT-SIGNATURE': fakePayload },
+      data: { gate_id: 4 },
+    });
+    // Gate 4 has x402 disabled -> must fail closed, never verify/settle/serve.
+    expect(res.status()).toBe(402);
+    const body = await res.json();
+    expect(body.error).toMatch(/not enabled/i);
+    await api.dispose();
+  });
 });

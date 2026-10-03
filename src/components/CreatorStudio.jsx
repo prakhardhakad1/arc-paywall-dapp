@@ -30,6 +30,8 @@ export default function CreatorStudio({
   onOpenEmbedModal,
   onViewSecret,
   onToggleGateActive,
+  onToggleX402,
+  x402Settings,
   onWithdrawEarnings,
   pendingEarnings,
   isWithdrawing,
@@ -374,6 +376,33 @@ export default function CreatorStudio({
                         )}
                       </button>
                     </div>
+
+                    {/* x402 agent payments opt-in toggle */}
+                    <button
+                      onClick={() => onToggleX402 && onToggleX402(gate.id)}
+                      className={`w-full py-2 px-3 rounded-xl text-[11px] font-semibold border flex items-center justify-between cursor-pointer transition-all ${
+                        x402Settings && x402Settings[String(gate.id)]
+                          ? 'bg-cyan-950/60 text-cyan-300 border-cyan-500/40 hover:bg-cyan-900/40'
+                          : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200 hover:border-slate-700'
+                      }`}
+                      title="Let AI agents pay this gate programmatically via the x402 standard. Off by default."
+                    >
+                      <span className="flex items-center space-x-1.5">
+                        <Zap className={`w-3.5 h-3.5 ${x402Settings && x402Settings[String(gate.id)] ? 'text-cyan-400' : 'text-slate-500'}`} />
+                        <span>x402 agent payments</span>
+                      </span>
+                      {x402Settings && x402Settings[String(gate.id)] ? (
+                        <span className="flex items-center space-x-1 text-cyan-300">
+                          <ToggleRight className="w-4 h-4" />
+                          <span>On</span>
+                        </span>
+                      ) : (
+                        <span className="flex items-center space-x-1 text-slate-500">
+                          <ToggleLeft className="w-4 h-4" />
+                          <span>Off</span>
+                        </span>
+                      )}
+                    </button>
                   </div>
 
                 </div>

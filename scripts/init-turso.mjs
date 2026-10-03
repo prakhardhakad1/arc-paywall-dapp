@@ -70,6 +70,14 @@ async function main() {
     );
   `);
 
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS gate_x402_settings (
+      gate_id INTEGER PRIMARY KEY,
+      enabled INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL
+    );
+  `);
+
   console.log("Tables verified successfully! Querying sqlite_master...");
   const res = await client.execute("SELECT name FROM sqlite_master WHERE type='table';");
   console.log("Current tables in Turso:", res.rows.map(r => r.name));

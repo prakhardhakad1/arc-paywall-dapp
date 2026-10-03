@@ -10,6 +10,7 @@ export default function CreateGateModal({ isOpen, onClose, onCreateGate, isCreat
   const [description, setDescription] = useState('');
   const [secretPayload, setSecretPayload] = useState('');
   const [priceUsdc, setPriceUsdc] = useState('0.10');
+  const [x402Enabled, setX402Enabled] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -65,7 +66,8 @@ export default function CreateGateModal({ isOpen, onClose, onCreateGate, isCreat
         description: description.trim(),
         secretPayload: encryptedPayload,
         gateKey,
-        priceUsdc: priceUsdc.trim()
+        priceUsdc: priceUsdc.trim(),
+        x402Enabled,
       });
     } catch (err) {
       console.error('Encryption failed:', err);
@@ -203,6 +205,22 @@ export default function CreateGateModal({ isOpen, onClose, onCreateGate, isCreat
             <span>Protocol Fee: <strong className="text-slate-300">1%</strong></span>
             <span>Finality: <strong className="text-cyan-400">&lt; 1s</strong></span>
           </div>
+
+          {/* x402 agent payments opt-in */}
+          <label className="flex items-start gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800 cursor-pointer hover:border-cyan-700 transition-all">
+            <input
+              type="checkbox"
+              checked={x402Enabled}
+              onChange={(e) => setX402Enabled(e.target.checked)}
+              className="mt-0.5 w-4 h-4 rounded accent-cyan-500 cursor-pointer"
+            />
+            <span className="text-[11px] text-slate-400 leading-relaxed">
+              <span className="text-slate-200 font-semibold">Enable x402 agent payments.</span>
+              {' '}Lets autonomous AI agents pay this gate programmatically via the x402
+              standard — no human clicks needed. Off by default; you can toggle it
+              anytime from Creator Studio.
+            </span>
+          </label>
 
           {/* Submit */}
           <button

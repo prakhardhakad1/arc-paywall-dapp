@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { X, Heart, Sparkles, AlertCircle } from 'lucide-react';
+import useFocusTrap from '../hooks/useFocusTrap';
 
 export default function TipModal({ isOpen, onClose, onSendTip, isTipping, initialRecipient, isConnected, isArcNetwork }) {
+  const dialogRef = useFocusTrap();
   const [recipient, setRecipient] = useState(initialRecipient || '');
   const [amountUsdc, setAmountUsdc] = useState('0.50');
   const [message, setMessage] = useState('Great alpha! Keep building on Arc.');
@@ -61,6 +63,8 @@ export default function TipModal({ isOpen, onClose, onSendTip, isTipping, initia
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-labelledby="tip-modal-title"
@@ -72,7 +76,7 @@ export default function TipModal({ isOpen, onClose, onSendTip, isTipping, initia
         <button
           onClick={onClose}
           aria-label="Close modal"
-          className="absolute top-5 right-5 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer"
+          className="absolute top-5 right-5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-all cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>

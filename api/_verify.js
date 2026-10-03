@@ -137,6 +137,32 @@ export async function putKey(gateId, keyText, creator) {
   });
 }
 
+/**
+ * Idempotent claim tracking. Each on-chain unlockGate transaction may be
+ * claimed; the first valid claim records (tx_hash -> gate, buyer) and repeat
+ * claims by the same payer return the same key with `replay: true` instead of
+ * re-processing. A claim signed by anyone other than the tx sender is rejected
+ * by the signature check in /api/unlock before this is consulted.
+ * Returns { replay: boolean }. Never blocks a legitimate payer retry.
+ */
+export async function recordClaim(txHash, gateId, buyer) {
+  const db = getTurso();
+  if (!db) return { replay: false };
+  await db.execute(`CREATE TABLE IF NOT EXISTS unlock_claims (
+    tx_hash TEXT PRIMARY KEY,
+    gate_id INTEGER NOT NULL,
+    buyer TEXT NOT NULL,
+    claimed_at INTEGER NOT NULL
+  )`);
+  // Atomic INSERT OR IGNORE: concurrent retries of the same claim cannot race
+  // into a unique-key error. rowsAffected === 0 means the row already existed.
+  const norm = String(txHash).toLowerCase();
+  const inserted = await db.execute({
+    sql: 'INSERT OR IGNORE INTO unlock_claims (tx_hash, gate_id, buyer, claimed_at) VALUES (?, ?, ?, ?)',
+    args: [norm, gateId, String(buyer).toLowerCase(), Math.floor(Date.now() / 1000)],
+  });
+  return { replay: Number(inserted.rowsAffected || 0) === 0 };
+}
 export function sendError(res, err) {
   const status = err.status || 500;
   return res.status(status).json({ success: false, error: err.message || 'Internal error' });

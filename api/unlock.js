@@ -5,6 +5,7 @@ import {
   parseGateIdArg,
   getGatePrice,
   getKey,
+  recordClaim,
   sendError,
 } from './_verify.js';
 
@@ -91,7 +92,16 @@ export default async function handler(req, res) {
       });
     }
 
-    return res.status(200).json({ success: true, gateId: unlockedGateId, key });
+    // Idempotent claims: the first valid claim records this tx; a repeat
+    // claim by the same payer returns the same key (marked replay) instead
+    // of being treated as a new event. Legit retries are never blocked.
+    const claim = await recordClaim(txHash, unlockedGateId, from);
+    return res.status(200).json({
+      success: true,
+      gateId: unlockedGateId,
+      key,
+      ...(claim.replay ? { replay: true, note: 'This transaction was already claimed; returning the same key.' } : {}),
+    });
   } catch (err) {
     return sendError(res, err);
   }

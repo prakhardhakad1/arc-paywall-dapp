@@ -12,17 +12,12 @@ const CONTRACT =
   process.env.ARC_PAYWALL_ADDRESS || '0x59a2f8f63cf6a2F918d8299a4B999341A1fC9620';
 const RPC = process.env.ARC_RPC_URL || 'https://rpc.mainnet.arc.io';
 
-// Fallback prices (USDC) used only if the on-chain read fails.
-const FALLBACK_PRICES = { 1: '0.10', 2: '0.25', 3: '0.50' };
+// No hardcoded price fallbacks: advertising a stale price would let an agent
+// overpay or underpay. If the on-chain read fails we fail closed with 503.
 
 const GATE_ABI = [
   'function getGate(uint256 gateId) external view returns (tuple(uint256 id, address creator, string title, string description, uint256 priceUsdcWei, uint256 unlockCount, uint256 createdAt, bool active, bool isUnlocked, string secretPayload))',
 ];
-
-function usdcToWei(s) {
-  const [w = '0', f = ''] = String(s).split('.');
-  return (BigInt(w) * 10n ** 18n + BigInt((f + '0'.repeat(18)).slice(0, 18))).toString();
-}
 
 function weiToUsdc(w) {
   const b = BigInt(w);
@@ -31,9 +26,11 @@ function weiToUsdc(w) {
   return frac ? `${whole}.${frac}` : whole.toString();
 }
 
-// Read the gate's live on-chain price. Returns the priceWei string, or null
-// when the gate does not exist or the RPC read fails/times out.
-async function readOnChainPriceWei(gateId) {
+// Read the gate's live on-chain state. Returns:
+//   { ok: true, priceWei, active }  — gate exists
+//   { ok: false, reason: 'not-found' } — no such gate (id 0 / revert)
+//   { ok: false, reason: 'rpc-error' } — RPC unreachable or timed out
+async function readGate(gateId) {
   try {
     const provider = new JsonRpcProvider(RPC, 5042, { staticNetwork: true });
     const contract = new Contract(CONTRACT, GATE_ABI, provider);
@@ -41,10 +38,17 @@ async function readOnChainPriceWei(gateId) {
       contract.getGate(gateId),
       new Promise((_, reject) => setTimeout(() => reject(new Error('rpc timeout')), 5000)),
     ]);
-    if (!gate || gate.id === undefined || Number(gate.id) === 0) return null;
-    return gate.priceUsdcWei.toString();
-  } catch {
-    return null;
+    if (!gate || gate.id === undefined || Number(gate.id) === 0) {
+      return { ok: false, reason: 'not-found' };
+    }
+    return { ok: true, priceWei: gate.priceUsdcWei.toString(), active: Boolean(gate.active) };
+  } catch (e) {
+    // The contract reverts for out-of-range gate ids (CALL_EXCEPTION);
+    // anything else is an RPC/network failure.
+    if (e && (e.code === 'CALL_EXCEPTION' || /revert/i.test(e.message || ''))) {
+      return { ok: false, reason: 'not-found' };
+    }
+    return { ok: false, reason: 'rpc-error' };
   }
 }
 
@@ -63,16 +67,20 @@ export default async function handler(req, res) {
   }
   res.setHeader('X-Arc-Gate-Id', String(gateId));
 
-  let priceWei = await readOnChainPriceWei(gateId);
-  let priceSource = 'on-chain';
-  if (!priceWei) {
-    if (FALLBACK_PRICES[gateId]) {
-      priceWei = usdcToWei(FALLBACK_PRICES[gateId]);
-      priceSource = 'fallback';
-    } else {
-      return res.status(404).json({ status: 404, error: 'Gate not found', gateId });
+  let gate = await readGate(gateId);
+  if (!gate.ok) {
+    if (gate.reason === 'rpc-error') {
+      // Fail closed: never advertise a price we could not verify on-chain.
+      return res.status(503).json({ status: 503, error: 'Price oracle unavailable — could not read gate from Arc RPC. Retry shortly.', gateId });
     }
+    return res.status(404).json({ status: 404, error: 'Gate not found', gateId });
   }
+  if (!gate.active) {
+    // Paused gates are hidden from the agentic surface: no price, no claim path.
+    return res.status(404).json({ status: 404, error: 'Gate not found or paused', gateId });
+  }
+  const priceWei = gate.priceWei;
+  const priceSource = 'on-chain';
   const priceUsdc = weiToUsdc(priceWei);
   res.setHeader('X-Arc-Price-USDC', priceUsdc);
   res.setHeader('X-Arc-Price-Wei', priceWei);

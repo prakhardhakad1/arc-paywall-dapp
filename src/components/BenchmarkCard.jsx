@@ -19,7 +19,7 @@ export default function BenchmarkCard() {
     },
     {
       metric: 'Average Gas Fee',
-      arc: '~$0.001 USDC (Negligible)',
+      arc: '~$0.004 USDC (Measured live)',
       arcHighlight: true,
       eth: '$3.50 – $12.00+ (Extravagant)',
       ethHighlight: false,
@@ -60,6 +60,18 @@ export default function BenchmarkCard() {
           </p>
           <p className="text-[11px] text-slate-400 mt-2 max-w-2xl">
             Illustrative comparison — figures are indicative industry estimates, not measurements taken on-chain by ArcGate.
+          </p>
+          <p className="text-[11px] text-emerald-300/90 mt-1 max-w-2xl">
+            Measured live: ArcGate unlock{' '}
+            <a
+              href="https://explorer.arc.io/tx/0x402097058faf2179a60a98996d9e4fca44e8e5817d04cc87579a631a35803e0d"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2 font-mono"
+            >
+              0x4020…803e0d
+            </a>{' '}
+            settled successfully using 176,517 gas at 21.5 Gwei ≈ $0.0038 USDC in fees — a real $0.05 micro-payment with the fee under 8% of the price.
           </p>
         </div>
       </div>

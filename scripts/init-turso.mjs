@@ -61,6 +61,15 @@ async function main() {
     );
   `);
 
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS unlock_claims (
+      tx_hash TEXT PRIMARY KEY,
+      gate_id INTEGER NOT NULL,
+      buyer TEXT NOT NULL,
+      claimed_at INTEGER NOT NULL
+    );
+  `);
+
   console.log("Tables verified successfully! Querying sqlite_master...");
   const res = await client.execute("SELECT name FROM sqlite_master WHERE type='table';");
   console.log("Current tables in Turso:", res.rows.map(r => r.name));

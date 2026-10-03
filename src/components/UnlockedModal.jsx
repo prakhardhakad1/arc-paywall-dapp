@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { X, Unlock, Copy, Check, ExternalLink, ShieldCheck, Key } from 'lucide-react';
+import useFocusTrap from '../hooks/useFocusTrap';
 import { decryptPayload, getSandboxDemoKey, isEncryptedEnvelope } from '../lib/crypto';
 
 export default function UnlockedModal({ isOpen, onClose, gate, isDemoMode }) {
+  const dialogRef = useFocusTrap();
   const [copied, setCopied] = useState(false);
   const [decryptedText, setDecryptedText] = useState('');
   const [isDecrypting, setIsDecrypting] = useState(true);
@@ -65,6 +67,8 @@ export default function UnlockedModal({ isOpen, onClose, gate, isDemoMode }) {
 
   return (
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       role="dialog"
       aria-modal="true"
       aria-labelledby="unlocked-dialog-title"
@@ -76,7 +80,7 @@ export default function UnlockedModal({ isOpen, onClose, gate, isDemoMode }) {
         <button
           onClick={onClose}
           aria-label="Close unlocked secret dialog"
-          className="absolute top-5 right-5 p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer"
+          className="absolute top-5 right-5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition-all cursor-pointer"
         >
           <X className="w-4 h-4" />
         </button>
